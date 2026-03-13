@@ -1,0 +1,264 @@
+/**
+ * GPD Reporting Portal - Library Customizations
+ * 
+ * This file contains custom styling for:
+ * - Toastify
+ * - SweetAlert2
+ * - Select2
+ */
+
+/* ===== Toastify Customizations ===== */
+.toastify {
+  font-family: 'Inter', sans-serif;
+  padding: 12px 20px;
+  border-radius: 11px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.toastify .toast-close {
+  opacity: 0.7;
+  padding: 0 8px;
+}
+
+/* Custom toast backgrounds */
+.toastify.toast-success {
+  background: linear-gradient(to right, #10B981, #34D399);
+  color: white;
+}
+
+.toastify.toast-error {
+  background: linear-gradient(to right, #EF4444, #F87171);
+  color: white;
+}
+
+.toastify.toast-info {
+  background: linear-gradient(to right, #3B82F6, #60A5FA);
+  color: white;
+}
+
+.toastify.toast-warning {
+  background: linear-gradient(to right, #F59E0B, #FBBF24);
+  color: white;
+}
+
+/* ===== SweetAlert2 Customizations ===== */
+.swal2-popup {
+  font-family: 'Inter', sans-serif;
+  border-radius: 15px;
+  padding: 2em;
+}
+
+.swal2-title {
+  font-weight: 600;
+  font-size: 1.5rem;
+}
+
+.swal2-content {
+  font-size: 1rem;
+}
+
+.swal2-styled.swal2-confirm {
+  background: linear-gradient(180deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%);
+  border-radius: 11px;
+  font-weight: 600;
+  padding: 0.6em 2em;
+  transition: all 0.3s cubic-bezier(0.15, 0.83, 0.66, 1);
+}
+
+.swal2-styled.swal2-confirm:hover {
+  box-shadow: 0px 0px 0px 2px #FFFFFF, 0px 0px 0px 4px rgba(59, 130, 246, 0.5);
+  background: linear-gradient(180deg, #4F8EF7 0%, #3573F0 50%, #2E5EE0 100%);
+}
+
+.swal2-styled.swal2-cancel {
+  background: #f2f2f2;
+  color: #333;
+  border-radius: 11px;
+  font-weight: 600;
+  padding: 0.6em 2em;
+}
+
+.swal2-styled.swal2-cancel:hover {
+  background: #e5e5e5;
+}
+
+.swal2-icon {
+  border-width: 3px;
+}
+
+/* Success icon */
+.swal2-icon.swal2-success {
+  border-color: #10B981;
+}
+.swal2-icon.swal2-success [class^=swal2-success-line] {
+  background-color: #10B981;
+}
+.swal2-icon.swal2-success .swal2-success-ring {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* Error icon */
+.swal2-icon.swal2-error {
+  border-color: #EF4444;
+}
+.swal2-icon.swal2-error [class^=swal2-x-mark-line] {
+  background-color: #EF4444;
+}
+
+/* Warning icon */
+.swal2-icon.swal2-warning {
+  border-color: #F59E0B;
+  color: #F59E0B;
+}
+
+/* Info icon */
+.swal2-icon.swal2-info {
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+
+/* Question icon */
+.swal2-icon.swal2-question {
+  border-color: #8B5CF6;
+  color: #8B5CF6;
+}
+
+/* ===== Select2 Customizations ===== */
+.select2-container--classic .select2-selection--single {
+  height: 40px;
+  border-radius: 9px;
+  border: 1px solid #e5e5e500;
+  background-color: #F2F2F2;
+  outline: none;
+  transition: all 0.3s cubic-bezier(0.15, 0.83, 0.66, 1);
+}
+
+.select2-container--classic .select2-selection--single:focus {
+  border: 1px solid transparent;
+  box-shadow: 0px 0px 0px 2px #242424;
+  background-color: transparent;
+}
+
+.select2-container--classic .select2-selection--single .select2-selection__rendered {
+  line-height: 40px;
+  padding-left: 16px;
+  color: #333;
+}
+
+.select2-container--classic .select2-selection--single .select2-selection__arrow {
+  height: 38px;
+  background: transparent;
+  border: none;
+}
+
+.select2-container--classic .select2-results__option--highlighted[aria-selected] {
+  background-color: #333;
+}
+
+.select2-container--classic .select2-results__option {
+  padding: 8px 16px;
+}
+
+.select2-container--classic .select2-search--dropdown .select2-search__field {
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 6px 10px;
+}
+
+.select2-container--classic .select2-dropdown {
+  border-color: #ddd;
+  border-radius: 9px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+}
+
+.select2-container--classic.select2-container--open .select2-selection--single {
+  border: 1px solid transparent;
+  box-shadow: 0px 0px 0px 2px #242424;
+}
+
+/* Multiple select */
+.select2-container--classic .select2-selection--multiple {
+  border-radius: 9px;
+  border: 1px solid #e5e5e500;
+  background-color: #F2F2F2;
+  min-height: 40px;
+}
+
+.select2-container--classic .select2-selection--multiple .select2-selection__choice {
+  background-color: #333;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 3px 8px;
+  margin-top: 6px;
+}
+
+.select2-container--classic .select2-selection--multiple .select2-selection__choice__remove {
+  color: white;
+  margin-right: 5px;
+}
+
+.select2-container--classic.select2-container--focus .select2-selection--multiple {
+  border: 1px solid transparent;
+  box-shadow: 0px 0px 0px 2px #242424;
+}
+
+/* Placeholder */
+.select2-container--classic .select2-selection--single .select2-selection__placeholder {
+  color: #888;
+}
+
+/* Disabled state */
+.select2-container--classic .select2-selection--single[aria-disabled=true] {
+  background-color: #f9f9f9;
+  opacity: 0.7;
+}
+
+/* Custom Select2 validation styling */
+.was-validated .select2-container--classic .select2-selection--single.is-invalid,
+.was-validated .select2-container--classic .select2-selection--multiple.is-invalid {
+  border-color: #dc3545;
+}
+
+.was-validated .select2-container--classic .select2-selection--single.is-valid,
+.was-validated .select2-container--classic .select2-selection--multiple.is-valid {
+  border-color: #28a745;
+}
+
+/* Flatpickr customizations */
+.flatpickr-input.input_field {
+  background-color: #F2F2F2;
+}
+
+.flatpickr-day.selected, 
+.flatpickr-day.startRange, 
+.flatpickr-day.endRange, 
+.flatpickr-day.selected.inRange, 
+.flatpickr-day.startRange.inRange, 
+.flatpickr-day.endRange.inRange, 
+.flatpickr-day.selected:focus, 
+.flatpickr-day.startRange:focus, 
+.flatpickr-day.endRange:focus, 
+.flatpickr-day.selected:hover, 
+.flatpickr-day.startRange:hover, 
+.flatpickr-day.endRange:hover, 
+.flatpickr-day.selected.prevMonthDay, 
+.flatpickr-day.startRange.prevMonthDay, 
+.flatpickr-day.endRange.prevMonthDay, 
+.flatpickr-day.selected.nextMonthDay, 
+.flatpickr-day.startRange.nextMonthDay, 
+.flatpickr-day.endRange.nextMonthDay {
+  background: #333;
+  border-color: #333;
+}
+
+.flatpickr-months {
+  background-color: #333;
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months:hover,
+.flatpickr-current-month input.cur-year:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
