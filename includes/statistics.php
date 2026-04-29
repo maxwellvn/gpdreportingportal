@@ -672,6 +672,103 @@ class Statistics {
         ];
     }
 
+    /**
+     * Get user engagement metrics for admin dashboard.
+     * Visits are based on recorded login events in user_visits.
+     */
+    public function getUserEngagementStatistics($filters = []) {
+        if (!$this->hasUserVisitsTable()) {
+            return [
+                'avg_visits_per_month' => 0.0,
+                'avg_unique_visitors_per_month' => 0.0,
+                'visits_this_month' => 0,
+                'unique_visitors_this_month' => 0,
+                'posts_this_month' => 0,
+            ];
+        }
+
+        $whereClause = "WHERE 1=1";
+        $params = [];
+
+        if (!empty($filters['region'])) {
+            $whereClause .= " AND us.region = :region";
+            $params[':region'] = $filters['region'];
+        }
+
+        if (!empty($filters['zone'])) {
+            $whereClause .= " AND us.zone = :zone";
+            $params[':zone'] = $filters['zone'];
+        }
+
+        $avgQuery = "SELECT
+                COALESCE(AVG(monthly_stats.monthly_visits), 0) as avg_visits_per_month,
+                COALESCE(AVG(monthly_stats.monthly_unique_visitors), 0) as avg_unique_visitors_per_month
+            FROM (
+                SELECT
+                    DATE_FORMAT(uv.visited_at, '%Y-%m') as month_key,
+                    COUNT(*) as monthly_visits,
+                    COUNT(DISTINCT uv.user_id) as monthly_unique_visitors
+                FROM user_visits uv
+                LEFT JOIN users us ON uv.user_id = us.id
+                $whereClause
+                GROUP BY DATE_FORMAT(uv.visited_at, '%Y-%m')
+            ) monthly_stats";
+
+        $stmt = $this->conn->prepare($avgQuery);
+        $stmt->execute($params);
+        $avgResult = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $thisMonthQuery = "SELECT
+                COUNT(*) as visits_this_month,
+                COUNT(DISTINCT uv.user_id) as unique_visitors_this_month
+            FROM user_visits uv
+            LEFT JOIN users us ON uv.user_id = us.id
+            $whereClause
+            AND YEAR(uv.visited_at) = YEAR(CURDATE())
+            AND MONTH(uv.visited_at) = MONTH(CURDATE())";
+
+        $stmt = $this->conn->prepare($thisMonthQuery);
+        $stmt->execute($params);
+        $thisMonthResult = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $postsThisMonthQuery = "SELECT
+                COUNT(*) as posts_this_month
+            FROM reports r
+            LEFT JOIN users us ON r.user_id = us.id
+            $whereClause
+            AND YEAR(r.report_month) = YEAR(CURDATE())
+            AND MONTH(r.report_month) = MONTH(CURDATE())";
+
+        $stmt = $this->conn->prepare($postsThisMonthQuery);
+        $stmt->execute($params);
+        $postsThisMonthResult = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return [
+            'avg_visits_per_month' => round((float)($avgResult['avg_visits_per_month'] ?? 0), 1),
+            'avg_unique_visitors_per_month' => round((float)($avgResult['avg_unique_visitors_per_month'] ?? 0), 1),
+            'visits_this_month' => (int)($thisMonthResult['visits_this_month'] ?? 0),
+            'unique_visitors_this_month' => (int)($thisMonthResult['unique_visitors_this_month'] ?? 0),
+            'posts_this_month' => (int)($postsThisMonthResult['posts_this_month'] ?? 0),
+        ];
+    }
+
+    private function hasUserVisitsTable() {
+        static $tableExists = null;
+
+        if ($tableExists !== null) {
+            return $tableExists;
+        }
+
+        try {
+            $stmt = $this->conn->query("SHOW TABLES LIKE 'user_visits'");
+            $tableExists = (bool)$stmt->fetchColumn();
+            return $tableExists;
+        } catch (Exception $e) {
+            $tableExists = false;
+            return false;
+        }
+    }
+
     private function normalizeFilterDate($value, $boundary = 'start') {
         if (empty($value) || !is_string($value)) {
             return null;

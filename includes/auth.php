@@ -129,9 +129,41 @@ class Auth {
 
         if ($user && password_verify($password, $user['password'])) {
             $this->userId = $user['id'];
+            self::recordUserVisit((int)$user['id'], 'password');
             return true;
         }
         return false;
+    }
+
+    public static function recordUserVisit($userId, $source = 'app') {
+        try {
+            $db = new Database();
+            $conn = $db->getConnection();
+
+            $tableStmt = $conn->query("SHOW TABLES LIKE 'user_visits'");
+            $tableExists = (bool)$tableStmt->fetchColumn();
+            if (!$tableExists) {
+                return false;
+            }
+
+            $stmt = $conn->prepare(
+                "INSERT INTO user_visits (user_id, source, ip_address, user_agent, visited_at)
+                 VALUES (:user_id, :source, :ip_address, :user_agent, NOW())"
+            );
+
+            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+
+            return $stmt->execute([
+                ':user_id' => (int)$userId,
+                ':source' => (string)$source,
+                ':ip_address' => $ipAddress,
+                ':user_agent' => $userAgent
+            ]);
+        } catch (Exception $e) {
+            error_log('Failed to record user visit: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**

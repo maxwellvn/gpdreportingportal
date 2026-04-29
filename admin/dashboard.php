@@ -95,6 +95,10 @@ if (!empty($filterZone))     $filters['zone']      = $filterZone;
 // Get key statistics
 $reportStats = $stats->getReportStatistics($filters);
 $complianceData = $stats->getZoneCompliance($filters);
+$engagementStats = $stats->getUserEngagementStatistics([
+    'region' => $filterRegion,
+    'zone' => $filterZone
+]);
 
 // Get reports breakdown by month for the selected year
 $monthlyBreakdownQuery = "SELECT
@@ -412,6 +416,61 @@ require_once '../layouts/header.php';
                 <div class="modern-stats-content">
                     <h3 class="modern-stats-label">Zones with Reports</h3>
                     <p class="modern-stats-value"><?php echo number_format($reportStats['unique_zones'] ?? 0); ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border">
+            <div class="modern-stats-card">
+                <div class="modern-stats-icon" style="background-color: #7c3aed;">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="modern-stats-content">
+                    <h3 class="modern-stats-label">Avg. Visits / Month</h3>
+                    <p class="modern-stats-value"><?php echo number_format($engagementStats['avg_visits_per_month'] ?? 0, 1); ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border">
+            <div class="modern-stats-card">
+                <div class="modern-stats-icon" style="background-color: #4f46e5;">
+                    <i class="fas fa-user-check"></i>
+                </div>
+                <div class="modern-stats-content">
+                    <h3 class="modern-stats-label">Avg. Unique Visitors / Month</h3>
+                    <p class="modern-stats-value"><?php echo number_format($engagementStats['avg_unique_visitors_per_month'] ?? 0, 1); ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border">
+            <div class="modern-stats-card">
+                <div class="modern-stats-icon" style="background-color: #2563eb;">
+                    <i class="fas fa-calendar-day"></i>
+                </div>
+                <div class="modern-stats-content">
+                    <h3 class="modern-stats-label">Visits This Month</h3>
+                    <p class="modern-stats-value"><?php echo number_format($engagementStats['visits_this_month'] ?? 0); ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border">
+            <div class="modern-stats-card">
+                <div class="modern-stats-icon" style="background-color: #0369a1;">
+                    <i class="fas fa-user-friends"></i>
+                </div>
+                <div class="modern-stats-content">
+                    <h3 class="modern-stats-label">Unique Visitors This Month</h3>
+                    <p class="modern-stats-value"><?php echo number_format($engagementStats['unique_visitors_this_month'] ?? 0); ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border">
+            <div class="modern-stats-card">
+                <div class="modern-stats-icon" style="background-color: #15803d;">
+                    <i class="fas fa-clipboard-list"></i>
+                </div>
+                <div class="modern-stats-content">
+                    <h3 class="modern-stats-label">Posts This Month (Reports)</h3>
+                    <p class="modern-stats-value"><?php echo number_format($engagementStats['posts_this_month'] ?? 0); ?></p>
                 </div>
             </div>
         </div>

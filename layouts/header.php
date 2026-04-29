@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/auth.php';
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
@@ -12,6 +13,11 @@ if (session_status() === PHP_SESSION_NONE) {
 $isLoggedIn = isset($_SESSION['user_id']);
 $userData = $isLoggedIn ? $_SESSION['user_data'] : null;
 $currentPage = basename($_SERVER['PHP_SELF']);
+
+// Record each authenticated page visit for engagement analytics.
+if ($isLoggedIn && isset($_SESSION['user_id'])) {
+    Auth::recordUserVisit((int)$_SESSION['user_id'], 'page_view');
+}
 
 // Define base URL from config
 $baseUrl = defined('BASE_URL') ? BASE_URL : '';
