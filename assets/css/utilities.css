@@ -1,0 +1,80 @@
+/* Static replacements for the Tailwind classes still used in markup (CDN removed).
+   ponytail: only the classes found in the codebase; prefer modern-theme.css components for new UI. */
+.hidden { display: none; }
+.block { display: block; }
+.inline-block { display: inline-block; }
+.flex { display: flex; }
+.inline-flex { display: inline-flex; }
+.grid { display: grid; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.items-center { align-items: center; }
+.items-end { align-items: flex-end; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.justify-end { justify-content: flex-end; }
+.gap-4 { gap: 1rem; }
+.space-x-1 > * + * { margin-left: 0.25rem; }
+.space-x-3 > * + * { margin-left: 0.75rem; }
+.space-y-1 > * + * { margin-top: 0.25rem; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
+
+.relative { position: relative; }
+.fixed { position: fixed; }
+.inset-0 { inset: 0; }
+.z-50 { z-index: 50; }
+.overflow-hidden { overflow: hidden; }
+.overflow-y-auto { overflow-y: auto; }
+.min-h-screen { min-height: 100vh; }
+.w-full { width: 100%; }
+.w-5 { width: 1.25rem; } .h-5 { height: 1.25rem; }
+.w-8 { width: 2rem; } .h-8 { height: 2rem; }
+
+.mt-1 { margin-top: 0.25rem; } .mt-2 { margin-top: 0.5rem; } .mt-6 { margin-top: 1.5rem; }
+.mb-1 { margin-bottom: 0.25rem; } .mb-2 { margin-bottom: 0.5rem; } .mb-4 { margin-bottom: 1rem; } .mb-6 { margin-bottom: 1.5rem; }
+.ml-1 { margin-left: 0.25rem; } .mr-1 { margin-right: 0.25rem; } .mr-2 { margin-right: 0.5rem; }
+.mx-4 { margin-left: 1rem; margin-right: 1rem; }
+.px-4 { padding-left: 1rem; padding-right: 1rem; }
+.pt-4 { padding-top: 1rem; } .pb-20 { padding-bottom: 5rem; }
+
+.text-xs { font-size: 0.75rem; line-height: 1rem; }
+.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.text-base { font-size: 1rem; line-height: 1.5rem; }
+.text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+.font-medium { font-weight: 500; }
+.text-left { text-align: left; } .text-center { text-align: center; } .text-right { text-align: right; }
+.text-gray-500 { color: var(--neutral-500); }
+.text-gray-600 { color: var(--neutral-600); }
+.text-gray-700 { color: var(--neutral-700); }
+.text-gray-800 { color: var(--neutral-800); }
+.text-gray-900 { color: var(--neutral-900); }
+.text-green-500 { color: var(--success-500); }
+.hover\:text-gray-700:hover { color: var(--neutral-700); }
+
+.bg-gray-50 { background-color: var(--neutral-50); }
+.bg-gray-500 { background-color: var(--neutral-900); }
+.bg-opacity-75 { opacity: 0.6; }
+.bg-primary-50 { background-color: var(--primary-50); }
+.border { border-width: 1px; }
+.border-t { border-top-width: 1px; }
+.border-gray-200 { border-color: var(--neutral-200); }
+.border-gray-300 { border-color: var(--neutral-300); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.shadow-xl { box-shadow: var(--shadow-xl); }
+.transition-all { transition: var(--transition-all); }
+.transition-opacity { transition: opacity var(--dur) var(--ease-out); }
+
+@media (min-width: 640px) {
+  .sm\:block { display: block; }
+  .sm\:flex { display: flex; }
+  .sm\:hidden { display: none; }
+  .sm\:align-middle { vertical-align: middle; }
+  .sm\:my-8 { margin-top: 2rem; margin-bottom: 2rem; }
+  .sm\:p-0 { padding: 0; }
+  .sm\:w-full { width: 100%; }
+  .sm\:max-w-lg { max-width: 32rem; }
+}
+@media (min-width: 768px) {
+  .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

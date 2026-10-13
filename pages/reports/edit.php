@@ -326,356 +326,321 @@ $reportMonthVal   = date('m', strtotime($report['report_month']));
 ?>
 
 <style>
-/* reuse cr-* from create.php — defined here for self-containment */
-.cr-page { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-.cr-breadcrumb { display:flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--neutral-400); margin-bottom:1.25rem; flex-wrap:wrap; }
-.cr-breadcrumb a { color:var(--neutral-500); text-decoration:none; }
-.cr-breadcrumb a:hover { color:var(--primary-600); }
-.cr-breadcrumb .sep { color:var(--neutral-300); }
-.cr-head { margin-bottom:1.5rem; }
-.cr-head h1 { font-size:1.25rem; font-weight:700; color:var(--neutral-900); margin:0 0 0.25rem; }
-.cr-head p { font-size:0.8125rem; color:var(--neutral-500); margin:0; }
-.cr-section { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; overflow:hidden; margin-bottom:1.25rem; }
-.cr-section-head { display:flex; align-items:center; gap:0.6rem; padding:0.75rem 1.1rem; background:var(--neutral-50); border-bottom:1px solid var(--neutral-100); }
-.cr-section-head h3 { font-size:0.875rem; font-weight:600; color:var(--neutral-800); margin:0; flex:1; }
-.cr-section-icon { width:1.75rem; height:1.75rem; border-radius:var(--radius-sm); background:var(--primary-100); color:var(--primary-600); display:flex; align-items:center; justify-content:center; font-size:0.75rem; flex-shrink:0; }
-.cr-section-body { padding:1.1rem; }
-.cr-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
-@media(max-width:540px) { .cr-grid { grid-template-columns:1fr; } }
-.cr-grid-3 { grid-template-columns:repeat(3,1fr); }
-@media(max-width:680px) { .cr-grid-3 { grid-template-columns:1fr 1fr; } }
-@media(max-width:400px) { .cr-grid-3 { grid-template-columns:1fr; } }
-.cr-field { display:flex; flex-direction:column; gap:0.2rem; }
-.cr-label { font-size:0.78rem; font-weight:600; color:var(--neutral-700); }
-.cr-hint { font-size:0.72rem; color:var(--neutral-400); margin:0; line-height:1.4; }
-.cr-input { width:100%; padding:0.45rem 0.65rem; font-size:0.8125rem; border:1px solid var(--neutral-200); border-radius:var(--radius-md); background:#fff; color:var(--neutral-800); outline:none; transition:border-color 0.15s, box-shadow 0.15s; }
-.cr-input:focus { border-color:var(--primary-400); box-shadow:0 0 0 3px rgba(14,165,233,0.1); }
-.cr-upload-zone { border:2px dashed var(--neutral-200); border-radius:var(--radius-lg); padding:1.1rem; text-align:center; cursor:pointer; transition:border-color 0.15s,background 0.15s; background:var(--neutral-50); }
-.cr-upload-zone:hover,.cr-upload-zone.drag-over { border-color:var(--primary-400); background:var(--primary-50); }
-.cr-upload-zone input[type=file] { display:none; }
-.cr-upload-icon { font-size:1.3rem; color:var(--neutral-300); margin-bottom:0.3rem; }
-.cr-upload-label { font-size:0.8rem; font-weight:600; color:var(--neutral-700); }
-.cr-upload-sub { font-size:0.72rem; color:var(--neutral-400); margin-top:0.1rem; }
-.cr-file-list { margin-top:0.6rem; display:flex; flex-direction:column; gap:0.4rem; }
-.cr-file-item { display:flex; align-items:center; gap:0.5rem; background:#fff; border:1px solid var(--neutral-200); border-radius:var(--radius-sm); padding:0.4rem 0.6rem; font-size:0.78rem; color:var(--neutral-700); }
-.cr-file-item i { color:var(--primary-400); }
-.cr-file-item .cr-file-size { margin-left:auto; color:var(--neutral-400); font-size:0.7rem; }
-.cr-file-item .cr-file-remove { color:var(--danger-400); cursor:pointer; padding:0 0.2rem; background:none; border:none; font-size:0.75rem; }
-.cr-img-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; margin-top:0.75rem; }
-@media(max-width:500px) { .cr-img-grid { grid-template-columns:repeat(3,1fr); } }
-.cr-img-thumb { position:relative; aspect-ratio:1; border-radius:var(--radius-md); overflow:hidden; background:var(--neutral-100); }
-.cr-img-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
-.cr-img-thumb .cr-img-remove { position:absolute; top:0.2rem; right:0.2rem; width:1.2rem; height:1.2rem; background:rgba(0,0,0,0.55); border-radius:50%; color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none; }
-.cr-img-thumb .cr-img-delete-badge { position:absolute; bottom:0; left:0; right:0; background:rgba(220,38,38,0.85); color:#fff; font-size:0.65rem; font-weight:600; text-align:center; padding:0.15rem 0; }
-.cr-existing-img { position:relative; aspect-ratio:1; border-radius:var(--radius-md); overflow:hidden; background:var(--neutral-100); }
-.cr-existing-img img { width:100%; height:100%; object-fit:cover; display:block; }
-.cr-existing-img label { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0); transition:background 0.15s; cursor:pointer; }
-.cr-existing-img:hover label, .cr-existing-img.marked label { background:rgba(220,38,38,0.55); }
-.cr-existing-img label span { color:#fff; font-size:0.7rem; font-weight:700; display:none; }
-.cr-existing-img:hover label span, .cr-existing-img.marked label span { display:block; }
-.cr-existing-img.marked .cr-del-check { display:block; }
-.cr-del-check { display:none; position:absolute; top:0.3rem; right:0.3rem; width:1.1rem; height:1.1rem; background:var(--danger-500); border-radius:50%; color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+/* Report form (create + edit share this block; candidates for the shared theme) */
+.cr-layout { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: var(--spacing-8); align-items: start; }
+.cr-aside { position: sticky; top: calc(var(--header-height) + var(--spacing-6)); }
+@media (max-width: 1023px) { .cr-layout { grid-template-columns: minmax(0, 1fr); } .cr-aside { position: static; } }
+.cr-aside h2 { font-size: var(--text-sm); font-weight: 500; color: var(--neutral-900); margin: var(--spacing-5) 0 var(--spacing-1); }
+.cr-aside h2:first-of-type { margin-top: var(--spacing-2); }
+.cr-aside p { font-size: var(--text-sm); color: var(--neutral-700); margin: 0; }
+
+/* Stepper: buttons on top of the shared .stepper/.stepper-item */
+.cr-steps { list-style: none; padding: 0; }
+.cr-steps .cr-step { background: none; border: 0; padding: 0 0 0.25rem; font-family: inherit; text-align: left; cursor: pointer; }
+.cr-step-num { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.04em; margin-right: 0.25rem; }
+@media (max-width: 600px) {
+  .cr-steps { gap: 0.25rem; margin-bottom: var(--spacing-6); }
+  .cr-steps .cr-step { min-height: 1.5rem; }
+  .cr-step-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+/* Sections */
+.cr-section { margin-bottom: var(--spacing-6); }
+.cr-wizard .cr-section { display: none; }
+.cr-wizard .cr-section.visible { display: block; }
+.cr-section-title { display: flex; align-items: baseline; gap: var(--spacing-3); margin: 0; font-size: var(--text-base); font-weight: 500; color: var(--neutral-900); }
+.cr-section .form-grid { gap: 0 var(--spacing-5); }
+.cr-section .panel-body > .field:last-child { margin-bottom: 0; }
+.cr-input.is-error { border-color: var(--danger-500); }
+.cr-input[readonly] { background: var(--mist); }
+.cr-compare-hint { margin-top: 0.375rem; }
+.cr-compare-hint:empty { display: none; }
+.cr-compare-chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.125rem 0.5rem; border-radius: var(--radius-full); font-size: var(--text-xs); font-weight: 500; font-variant-numeric: tabular-nums; }
+.cr-compare-chip.up { background: var(--success-50); color: var(--success-800); }
+.cr-compare-chip.down { background: var(--danger-50); color: var(--danger-800); }
+.cr-compare-chip.same { background: var(--neutral-100); color: var(--neutral-700); }
+.cr-toggle { display: flex; align-items: center; gap: var(--spacing-2); margin-bottom: var(--spacing-4); font-size: var(--text-sm); color: var(--neutral-700); cursor: pointer; }
+.cr-draft-bar { flex-wrap: wrap; align-items: center; }
+.cr-draft-bar > div:first-of-type { flex: 1 1 12rem; }
+.cr-draft-actions { display: flex; gap: var(--spacing-2); }
+
+/* Uploads */
+.cr-upload-zone { padding: var(--spacing-5); text-align: center; cursor: pointer; background: var(--mist); border: 1px dashed var(--neutral-300); border-radius: var(--radius-lg); transition: border-color var(--dur) var(--ease-out); }
+.cr-upload-zone.drag-over, .cr-upload-zone.has-file { border-color: var(--neutral-900); border-style: solid; }
+@media (hover: hover) and (pointer: fine) { .cr-upload-zone:hover { border-color: var(--neutral-500); } }
+.cr-upload-zone input[type=file] { display: none; }
+.cr-upload-icon { color: var(--neutral-600); margin-bottom: var(--spacing-2); }
+.cr-upload-label { font-size: var(--text-sm); font-weight: 500; color: var(--neutral-900); }
+.cr-upload-sub { margin-top: 0.125rem; font-size: var(--text-xs); color: var(--neutral-600); }
+.cr-file-list { display: grid; gap: var(--spacing-2); margin-top: var(--spacing-2); }
+.cr-file-list:empty { display: none; }
+.cr-file-item { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; padding: 0.5rem 0.75rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--neutral-800); }
+.cr-file-item i { color: var(--neutral-600); }
+.cr-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-file-size { margin-left: auto; flex-shrink: 0; font-size: var(--text-xs); color: var(--neutral-500); font-variant-numeric: tabular-nums; }
+.cr-file-remove { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex-shrink: 0; border: 0; border-radius: var(--radius-full); background: none; color: var(--neutral-600); cursor: pointer; }
+.cr-img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr)); gap: var(--spacing-2); margin-top: var(--spacing-3); }
+.cr-img-grid:empty { display: none; }
+.cr-img-thumb, .cr-existing-img { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: var(--radius-md); background: var(--neutral-100); }
+.cr-img-thumb img, .cr-existing-img img { display: block; width: 100%; height: 100%; object-fit: cover; outline: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); outline-offset: -1px; border-radius: inherit; }
+.cr-img-remove { position: absolute; top: 0.25rem; right: 0.25rem; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border: 0; border-radius: var(--radius-full); background: color-mix(in srgb, var(--ink) 70%, transparent); color: white; font-size: var(--text-xs); cursor: pointer; }
+
+/* Sticky action bar */
+.cr-actions { position: sticky; bottom: 0; z-index: 10; display: flex; align-items: center; gap: var(--spacing-3); padding: var(--spacing-3) 0; background: white; border-top: 1px solid var(--neutral-200); }
+.cr-actions-status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-actions-right { display: flex; gap: var(--spacing-2); margin-left: auto; }
+
+/* Review step */
+.cr-review .panel { margin-bottom: var(--spacing-4); }
+.cr-review .panel-head { padding-top: var(--spacing-3); padding-bottom: var(--spacing-3); }
+.cr-review .panel-body { padding-top: var(--spacing-1); padding-bottom: var(--spacing-1); }
+.cr-review .kv { font-size: var(--text-sm); }
+.cr-review dd.is-empty { color: var(--neutral-500); font-weight: 400; }
+/* Edit-only: section index + existing-image delete toggle */
+.cr-index { display: grid; gap: 0.125rem; margin: var(--spacing-2) 0 0; padding: 0; list-style: none; }
+.cr-index a { display: flex; gap: var(--spacing-2); padding: 0.375rem 0; font-size: var(--text-sm); color: var(--neutral-700); }
+.cr-index a .meta { line-height: inherit; }
+@media (hover: hover) and (pointer: fine) { .cr-index a:hover { color: var(--neutral-900); } }
+.cr-section { scroll-margin-top: calc(var(--header-height) + var(--spacing-4)); }
+.cr-existing-img { cursor: pointer; }
+.cr-existing-img .cr-del-label { position: absolute; inset: auto 0 0 0; padding: 0.25rem; font-size: var(--text-xs); font-weight: 500; text-align: center; color: white; background: color-mix(in srgb, var(--ink) 70%, transparent); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+.cr-existing-img.marked .cr-del-label { opacity: 1; background: var(--danger-600); }
+.cr-existing-img.marked img { opacity: 0.45; }
+.cr-existing-img:focus-visible .cr-del-label { opacity: 1; }
+@media (hover: hover) and (pointer: fine) { .cr-existing-img:hover .cr-del-label { opacity: 1; } }
+.cr-current-file { margin-bottom: var(--spacing-2); }
+.cr-current-file a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 
-<div class="cr-page">
-
-    <!-- Breadcrumb -->
-    <div class="cr-breadcrumb">
-        <a href="<?php echo BASE_URL; ?>/dashboard.php"><i class="fas fa-home" style="font-size:0.7rem;"></i> Dashboard</a>
-        <span class="sep">/</span>
-        <a href="list.php">My Reports</a>
-        <span class="sep">/</span>
-        <a href="view.php?id=<?php echo $reportId; ?>"><?php echo $reportMonthLabel; ?></a>
-        <span class="sep">/</span>
-        <span>Edit</span>
+<?php
+$prefill = [];
+foreach ($report as $k => $v) { $prefill[$k] = is_numeric($v) ? (int)$v : 0; }
+$renderNumField = function (string $name, string $label, string $hint, bool $readonly = false) use ($prefill) {
+    $n = htmlspecialchars($name, ENT_QUOTES);
+    $v = (int)($prefill[$name] ?? 0);
+    ?>
+    <div class="field cr-field">
+        <label class="field-label" for="<?php echo $n; ?>"><?php echo htmlspecialchars($label); ?></label>
+        <input type="number" id="<?php echo $n; ?>" name="<?php echo $n; ?>" class="input cr-input"
+               placeholder="0" min="0" inputmode="numeric" <?php echo $readonly ? 'readonly' : ''; ?>
+               value="<?php echo $v; ?>" aria-describedby="hint-<?php echo $n; ?>">
+        <p class="field-help" id="hint-<?php echo $n; ?>"><?php echo htmlspecialchars($hint); ?></p>
     </div>
+    <?php
+};
+$sections = ['period' => 'Reporting period & total copies', 'alerts' => 'Alerts & language missions', 'campaigns' => 'Campaigns & programs', 'distribution' => 'Distribution & growth', 'syk' => 'Say Yes to Kids impact', 'files' => 'Documents & images'];
+$secNo = function (string $key) use ($sections) { return sprintf('%02d', array_search($key, array_keys($sections), true) + 1); };
+?>
 
-    <div class="cr-head">
-        <h1><i class="fas fa-edit" style="color:var(--primary-500);margin-right:0.4rem;font-size:1rem;"></i>Edit Report — <?php echo $reportMonthLabel; ?></h1>
-        <p>Update the numbers for this report. Changes are saved immediately when you click <strong>Save Changes</strong>.</p>
+<nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="<?php echo BASE_URL; ?>/dashboard.php">Dashboard</a>
+    <span class="sep">/</span>
+    <a href="list.php">My reports</a>
+    <span class="sep">/</span>
+    <a href="view.php?id=<?php echo $reportId; ?>"><?php echo htmlspecialchars($reportMonthLabel); ?></a>
+    <span class="sep">/</span>
+    <span>Edit</span>
+</nav>
+
+<div class="page-head">
+    <div>
+        <p class="page-eyebrow">Report #<?php echo $reportId; ?> · <?php echo htmlspecialchars($report['username'] ?? ''); ?></p>
+        <h1 class="page-title">Edit <?php echo htmlspecialchars($reportMonthLabel); ?> report</h1>
+        <p class="page-sub">Change any value below. Nothing is saved until you press Save changes.</p>
     </div>
+</div>
+
+<div class="cr-layout">
+<div class="cr-main">
 
     <?php if (isset($_SESSION['error'])): ?>
-    <script>document.addEventListener('DOMContentLoaded',function(){showToast('<?php echo addslashes($_SESSION['error']); ?>','error',6000);});</script>
+    <div class="alert alert-danger" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <div><div class="alert-title">Changes were not saved</div><?php echo htmlspecialchars($_SESSION['error']); ?></div>
+    </div>
     <?php unset($_SESSION['error']); ?>
     <?php endif; ?>
 
     <form method="POST" enctype="multipart/form-data" id="edit-form" novalidate>
         <input type="hidden" name="csrf_token" value="<?php echo Security::generateCSRFToken(); ?>">
 
-        <!-- ── Section 1: Period & Total Copies ── -->
-        <div class="cr-section">
-            <div class="cr-section-head">
-                <div class="cr-section-icon"><i class="fas fa-calendar-alt"></i></div>
-                <h3>Reporting Period &amp; Total Copies</h3>
-            </div>
-            <div class="cr-section-body">
+        <section class="panel cr-section" id="sec-period">
+            <div class="panel-head"><h2 class="cr-section-title"><span class="meta"><?php echo $secNo('period'); ?></span><?php echo htmlspecialchars($sections['period']); ?></h2></div>
+            <div class="panel-body">
                 <?php
                 $months = ['01'=>'January','02'=>'February','03'=>'March','04'=>'April','05'=>'May','06'=>'June','07'=>'July','08'=>'August','09'=>'September','10'=>'October','11'=>'November','12'=>'December'];
                 $cy = (int)date('Y');
                 ?>
-                <div class="cr-grid" style="margin-bottom:1rem;">
-                    <div class="cr-field">
-                        <label class="cr-label" for="report_year">Year</label>
-                        <select id="report_year" name="report_year" class="cr-input" required>
+                <div class="form-grid">
+                    <div class="field cr-field">
+                        <label class="field-label" for="report_year">Year</label>
+                        <select id="report_year" name="report_year" class="input cr-input" required>
                             <?php for ($y=$cy; $y>=$cy-5; $y--): ?>
                             <option value="<?php echo $y; ?>" <?php echo $y==(int)$reportYearVal?'selected':''; ?>><?php echo $y; ?></option>
                             <?php endfor; ?>
                         </select>
                     </div>
-                    <div class="cr-field">
-                        <label class="cr-label" for="report_month">Month</label>
-                        <select id="report_month" name="report_month" class="cr-input" required>
+                    <div class="field cr-field">
+                        <label class="field-label" for="report_month">Month</label>
+                        <select id="report_month" name="report_month" class="input cr-input" required aria-describedby="hint-report_month">
                             <?php foreach ($months as $v => $l): ?>
-                            <option value="<?php echo $v; ?>" <?php echo $v===$reportMonthVal?'selected':''; ?>><?php echo $l; ?></option>
+                            <option value="<?php echo sprintf("%02d", $v); ?>" <?php echo (string)$v===$reportMonthVal?'selected':''; ?>><?php echo $l; ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <p class="cr-hint">Cannot be set to a future month.</p>
+                        <p class="field-help" id="hint-report_month">Cannot be set to a future month.</p>
                     </div>
                 </div>
-                <div class="cr-field">
-                    <label class="cr-label" for="total_copies">Total Copies Sponsored</label>
-                    <input type="number" id="total_copies" name="total_copies" class="cr-input"
-                           placeholder="0" min="0" value="<?php echo (int)$report['total_copies']; ?>">
-                    <p class="cr-hint">The total number of Rhapsody copies your zone sponsored this month across all programs.</p>
-                </div>
+                <?php $renderNumField('total_copies', 'Total copies sponsored', 'Rhapsody copies your zone sponsored this month across all programs.'); ?>
             </div>
-        </div>
+        </section>
 
-        <!-- ── Section 2: Alerts & Languages ── -->
-        <div class="cr-section">
-            <div class="cr-section-head">
-                <div class="cr-section-icon"><i class="fas fa-bell"></i></div>
-                <h3>Alerts &amp; Language Missions</h3>
-            </div>
-            <div class="cr-section-body">
-                <div class="cr-grid">
-                    <?php
-                    $s2 = [
-                        'wonder_alerts'         => ['Wonder Alerts Received',     'Number of Wonder Alert messages received and distributed this month.'],
-                        'kids_alerts'           => ['Kids Alerts',                'Number of Kids Alert messages received and distributed.'],
-                        'language_missions'     => ['Language Missions',          'Number of language mission activities conducted.'],
-                        'penetrating_truth'     => ['Penetrating with Truth',     'Copies of Penetrating Truth publications distributed.'],
-                        'penetrating_languages' => ['Penetrating with Languages', 'Language-specific outreach copies distributed.'],
-                    ];
-                    foreach ($s2 as $name => [$label, $hint]):
-                    ?>
-                    <div class="cr-field">
-                        <label class="cr-label" for="<?php echo $name; ?>"><?php echo $label; ?></label>
-                        <input type="number" id="<?php echo $name; ?>" name="<?php echo $name; ?>"
-                               class="cr-input" placeholder="0" min="0"
-                               value="<?php echo (int)$report[$name]; ?>">
-                        <p class="cr-hint"><?php echo $hint; ?></p>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
+        <section class="panel cr-section" id="sec-alerts">
+            <div class="panel-head"><h2 class="cr-section-title"><span class="meta"><?php echo $secNo('alerts'); ?></span><?php echo htmlspecialchars($sections['alerts']); ?></h2></div>
+            <div class="panel-body"><div class="form-grid">
+                <?php
+                $renderNumField('wonder_alerts', 'Wonder Alerts Received', 'Wonder Alert messages received and distributed this month.');
+                $renderNumField('kids_alerts', 'Kids Alerts', 'Kids Alert messages received and distributed.');
+                $renderNumField('language_missions', 'Language Missions', 'Language mission activities conducted.');
+                $renderNumField('penetrating_truth', 'Penetrating with Truth', 'Copies of Penetrating Truth publications distributed.');
+                $renderNumField('penetrating_languages', 'Penetrating with Languages', 'Language-specific outreach copies distributed.');
+                ?>
+            </div></div>
+        </section>
 
-        <!-- ── Section 3: Campaigns & Programs ── -->
-        <div class="cr-section">
-            <div class="cr-section-head">
-                <div class="cr-section-icon"><i class="fas fa-bullhorn"></i></div>
-                <h3>Campaigns &amp; Programs</h3>
-            </div>
-            <div class="cr-section-body">
-                <div class="cr-grid">
-                    <?php
-                    $s3 = [
-                        'youth_aglow'       => ['Youth Aglow',              'Youth Aglow outreach activities or copies distributed.'],
-                        'minister_campaign' => ['Every Minister Campaign',  'Copies distributed through the Every Minister Campaign.'],
-                        'say_yes_kids'      => ['Say Yes to Kids',          'Copies distributed to children under the Say Yes to Kids program.'],
-                        'no_one_left'       => ['No One Left Behind',       'Activities ensuring no community is unreached.'],
-                        'teevolution'       => ['Teevolution',              'Copies or activities relating to the Teevolution media outreach.'],
-                        'subscriptions'     => ['Subscriptions',            'Total active or new Rhapsody subscription sign-ups this month.'],
-                        'prayer_programs'   => ['Partners Prayer Programs', 'Formal prayer programs organized with or for partners.'],
-                        'partner_programs'  => ['Partners Programs',        'Total partner engagement events or programs held this month.'],
-                    ];
-                    foreach ($s3 as $name => [$label, $hint]):
-                    ?>
-                    <div class="cr-field">
-                        <label class="cr-label" for="<?php echo $name; ?>"><?php echo $label; ?></label>
-                        <input type="number" id="<?php echo $name; ?>" name="<?php echo $name; ?>"
-                               class="cr-input" placeholder="0" min="0"
-                               value="<?php echo (int)$report[$name]; ?>">
-                        <p class="cr-hint"><?php echo $hint; ?></p>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
+        <section class="panel cr-section" id="sec-campaigns">
+            <div class="panel-head"><h2 class="cr-section-title"><span class="meta"><?php echo $secNo('campaigns'); ?></span><?php echo htmlspecialchars($sections['campaigns']); ?></h2></div>
+            <div class="panel-body"><div class="form-grid">
+                <?php
+                $renderNumField('youth_aglow', 'Youth Aglow', 'Youth Aglow outreach activities or copies distributed.');
+                $renderNumField('minister_campaign', 'Every Minister Campaign', 'Copies distributed through the Every Minister Campaign.');
+                $renderNumField('say_yes_kids', 'Say Yes to Kids', 'Copies distributed to children under Say Yes to Kids.');
+                $renderNumField('no_one_left', 'No One Left Behind', 'Activities aimed at unreached communities.');
+                $renderNumField('teevolution', 'Teevolution', 'Copies or activities for the Teevolution media outreach.');
+                $renderNumField('subscriptions', 'Subscriptions', 'Active or new Rhapsody subscription sign-ups this month.');
+                $renderNumField('prayer_programs', 'Partners Prayer Programs', 'Formal prayer programs organized with or for partners.');
+                $renderNumField('partner_programs', 'Partners Programs', 'Partner engagement events or programs held this month.');
+                ?>
+            </div></div>
+        </section>
 
-        <!-- ── Section 4: Distribution & Growth ── -->
-        <div class="cr-section">
-            <div class="cr-section-head">
-                <div class="cr-section-icon"><i class="fas fa-chart-line"></i></div>
-                <h3>Distribution &amp; Growth Metrics</h3>
-            </div>
-            <div class="cr-section-body">
-                <div class="cr-grid">
-                    <?php
-                    $s4 = [
-                        'total_distribution'   => ['Total Copies Distributed',  'Combined total copies distributed across digital and physical channels.'],
-                        'distribution_digital' => ['Distribution - Digital',    'Copies distributed through digital channels and platforms.'],
-                        'distribution_physical'=> ['Distribution - Physical',   'Copies physically handed out or delivered to recipients.'],
-                        'souls_won'            => ['Souls Won',                 'People who made salvation decisions through outreach.'],
-                        'rhapsody_outreaches'  => ['Rhapsody Outreaches',       'Organised outreach events where Rhapsody was the focus.'],
-                        'rhapsody_cells'       => ['Rhapsody Cells',            'Active Rhapsody cell groups in your zone.'],
-                        'new_churches'         => ['New Churches',              'New churches or fellowships established this month.'],
-                        'new_partners'         => ['New Partners',              'New individuals who signed up as Rhapsody partners.'],
-                        'lingual_cells'        => ['Lingual Cells',             'Cell groups meeting in a language other than English.'],
-                        'language_churches'    => ['Language Churches',         'Churches primarily operating in a non-English language.'],
-                        'languages_sponsored'  => ['Languages Sponsored',       'Distinct languages with Rhapsody copies produced/distributed.'],
-                        'distribution_centers' => ['Distribution Centers',      'Active Rhapsody distribution points or depots in your zone.'],
-                        'external_ministers'   => ['External Ministers',        'Ministers from outside your zone who supported outreach.'],
-                        'crusades'             => ['Crusades',                  'Crusades held or supported this month.'],
-                        'testimonies_received' => ['Testimonies Received',       'Number of testimonies received this month. This does not replace the written testimonies document upload.'],
-                    ];
-                    foreach ($s4 as $name => [$label, $hint]):
-                    $isCalculatedDistribution = $name === 'total_distribution';
-                    ?>
-                    <div class="cr-field">
-                        <label class="cr-label" for="<?php echo $name; ?>"><?php echo $label; ?></label>
-                        <input type="number" id="<?php echo $name; ?>" name="<?php echo $name; ?>"
-                               class="cr-input" placeholder="0" min="0" <?php echo $isCalculatedDistribution ? 'readonly' : ''; ?>
-                               value="<?php echo (int)$report[$name]; ?>">
-                        <p class="cr-hint"><?php echo $hint; ?></p>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
+        <section class="panel cr-section" id="sec-distribution">
+            <div class="panel-head"><h2 class="cr-section-title"><span class="meta"><?php echo $secNo('distribution'); ?></span><?php echo htmlspecialchars($sections['distribution']); ?></h2></div>
+            <div class="panel-body"><div class="form-grid">
+                <?php
+                $renderNumField('distribution_digital', 'Distribution - Digital', 'Copies distributed through digital channels and platforms.');
+                $renderNumField('distribution_physical', 'Distribution - Physical', 'Copies physically handed out or delivered to recipients.');
+                $renderNumField('total_distribution', 'Total Copies Distributed', 'Calculated for you: digital + physical.', true);
+                $renderNumField('souls_won', 'Souls Won', 'People who made salvation decisions through outreach.');
+                $renderNumField('rhapsody_outreaches', 'Rhapsody Outreaches', 'Organised outreach events where Rhapsody was the focus.');
+                $renderNumField('rhapsody_cells', 'Rhapsody Cells', 'Active Rhapsody cell groups in your zone.');
+                $renderNumField('new_churches', 'New Churches', 'New churches or fellowships established this month.');
+                $renderNumField('new_partners', 'New Partners', 'People who signed up as Rhapsody partners.');
+                $renderNumField('lingual_cells', 'Lingual Cells', 'Cell groups meeting in a language other than English.');
+                $renderNumField('language_churches', 'Language Churches', 'Churches mainly operating in a non-English language.');
+                $renderNumField('languages_sponsored', 'Languages Sponsored', 'Distinct languages with Rhapsody copies produced or distributed.');
+                $renderNumField('distribution_centers', 'Distribution Centers', 'Active Rhapsody distribution points or depots in your zone.');
+                $renderNumField('external_ministers', 'External Ministers', 'Ministers from outside your zone who supported outreach.');
+                $renderNumField('crusades', 'Crusades', 'Crusades held or supported this month.');
+                $renderNumField('testimonies_received', 'Testimonies Received', 'Testimonies received this month. The written document is uploaded separately below.');
+                ?>
+            </div></div>
+        </section>
 
-        <!-- ── Section 5: Say Yes to Kids ── -->
-        <div class="cr-section">
-            <div class="cr-section-head">
-                <div class="cr-section-icon"><i class="fas fa-child"></i></div>
-                <h3>Say Yes to Kids — Detailed Impact</h3>
-            </div>
-            <div class="cr-section-body">
-                <div class="cr-grid cr-grid-3">
-                    <?php
-                    $s5 = [
-                        'syk_outreaches'         => ['Outreaches Held',     'Say Yes to Kids outreach events conducted this month.'],
-                        'syk_elementary_schools' => ['Schools Reached',     'Primary/elementary schools visited or engaged.'],
-                        'syk_orphanages'         => ['Orphanages Reached',  'Orphanages or children\'s homes visited.'],
-                        'syk_children_reached'   => ['Children Reached',    'Total children who received materials or participated.'],
-                        'syk_souls_won'          => ['Children Saved',      'Children who made salvation decisions.'],
-                        'syk_souls_retained'     => ['Children Retained',   'Saved children being followed up and retained in fellowship.'],
-                        'syk_rork_clubs'         => ['RORK Clubs',          'Rhapsody of Realities for Kids clubs currently active.'],
-                    ];
-                    foreach ($s5 as $name => [$label, $hint]):
-                    ?>
-                    <div class="cr-field">
-                        <label class="cr-label" for="<?php echo $name; ?>"><?php echo $label; ?></label>
-                        <input type="number" id="<?php echo $name; ?>" name="<?php echo $name; ?>"
-                               class="cr-input" placeholder="0" min="0"
-                               value="<?php echo (int)$report[$name]; ?>">
-                        <p class="cr-hint"><?php echo $hint; ?></p>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
+        <section class="panel cr-section" id="sec-syk">
+            <div class="panel-head"><h2 class="cr-section-title"><span class="meta"><?php echo $secNo('syk'); ?></span><?php echo htmlspecialchars($sections['syk']); ?></h2></div>
+            <div class="panel-body"><div class="form-grid">
+                <?php
+                $renderNumField('syk_outreaches', 'Outreaches Held', 'Say Yes to Kids outreach events this month.');
+                $renderNumField('syk_elementary_schools', 'Schools Reached', 'Primary/elementary schools visited or engaged.');
+                $renderNumField('syk_orphanages', 'Orphanages Reached', "Orphanages or children's homes visited.");
+                $renderNumField('syk_children_reached', 'Children Reached', 'Children who received materials or took part.');
+                $renderNumField('syk_souls_won', 'Children Saved', 'Children who made salvation decisions.');
+                $renderNumField('syk_souls_retained', 'Children Retained', 'Saved children being followed up and retained.');
+                $renderNumField('syk_rork_clubs', 'RORK Clubs', 'Rhapsody of Realities for Kids clubs currently active.');
+                ?>
+            </div></div>
+        </section>
 
-        <!-- ── Section 6: Files & Images ── -->
-        <div class="cr-section">
-            <div class="cr-section-head">
-                <div class="cr-section-icon"><i class="fas fa-paperclip"></i></div>
-                <h3>Supporting Documents &amp; Images</h3>
-            </div>
-            <div class="cr-section-body">
-                <p style="font-size:0.8rem;color:var(--neutral-500);margin:0 0 1rem;">Upload a new file to replace an existing one, or leave blank to keep the current file.</p>
-
-                <div class="cr-grid" style="margin-bottom:1.25rem;">
-                    <!-- Testimonies -->
-                    <div class="cr-field">
-                        <label class="cr-label">Testimonies Document</label>
-                        <?php if ($report['testimonies_file']): ?>
-                        <div class="cr-file-item" style="margin-bottom:0.4rem;">
-                            <i class="fas fa-file-alt"></i>
-                            <a href="<?php echo BASE_URL; ?>/uploads/documents/<?php echo htmlspecialchars($report['testimonies_file']); ?>"
-                               target="_blank" style="color:var(--primary-600);text-decoration:none;font-size:0.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:12rem;">
-                                <?php echo htmlspecialchars($report['testimonies_file']); ?>
-                            </a>
-                            <span style="margin-left:auto;font-size:0.68rem;color:var(--neutral-400);">current</span>
+        <section class="panel cr-section" id="sec-files">
+            <div class="panel-head"><h2 class="cr-section-title"><span class="meta"><?php echo $secNo('files'); ?></span><?php echo htmlspecialchars($sections['files']); ?></h2></div>
+            <div class="panel-body">
+                <p class="muted" style="margin:0 0 var(--spacing-5);">Upload a new file to replace the current one, or leave it empty to keep it.</p>
+                <div class="form-grid">
+                    <?php foreach ([['testimonies', 'Testimonies document', 'fa-file-lines'], ['innovations', 'Innovations document', 'fa-lightbulb']] as [$key, $label, $icon]):
+                        $current = $report[$key . '_file'] ?? ''; ?>
+                    <div class="field cr-field">
+                        <label class="field-label" for="<?php echo $key; ?>_file"><?php echo $label; ?></label>
+                        <?php if ($current): ?>
+                        <div class="cr-file-item cr-current-file">
+                            <i class="fas <?php echo $icon; ?>" aria-hidden="true"></i>
+                            <a class="link" href="<?php echo BASE_URL; ?>/uploads/documents/<?php echo htmlspecialchars(rawurlencode($current)); ?>" target="_blank" rel="noopener"><?php echo htmlspecialchars($current); ?></a>
+                            <span class="cr-file-size meta">Current</span>
                         </div>
                         <?php endif; ?>
-                        <div class="cr-upload-zone" id="zone-testimonies-edit" onclick="document.getElementById('testimonies_file').click()">
-                            <input type="file" id="testimonies_file" name="testimonies_file" accept=".pdf,.doc,.docx">
-                            <div class="cr-upload-icon"><i class="fas fa-file-alt"></i></div>
-                            <div class="cr-upload-label"><?php echo $report['testimonies_file'] ? 'Click to replace' : 'Click to upload'; ?></div>
-                            <div class="cr-upload-sub">PDF, DOC, DOCX — max 10 MB</div>
+                        <div class="cr-upload-zone" id="zone-<?php echo $key; ?>-edit" role="button" tabindex="0" onclick="document.getElementById('<?php echo $key; ?>_file').click()">
+                            <input type="file" id="<?php echo $key; ?>_file" name="<?php echo $key; ?>_file" accept=".pdf,.doc,.docx">
+                            <div class="cr-upload-icon"><i class="fas <?php echo $icon; ?>" aria-hidden="true"></i></div>
+                            <div class="cr-upload-label"><?php echo $current ? 'Choose a replacement' : 'Choose a file'; ?></div>
+                            <div class="cr-upload-sub">PDF, DOC, DOCX · max 10 MB</div>
                         </div>
-                        <div class="cr-file-list" id="list-testimonies"></div>
+                        <div class="cr-file-list" id="list-<?php echo $key; ?>"></div>
                     </div>
-                    <!-- Innovations -->
-                    <div class="cr-field">
-                        <label class="cr-label">Innovations Document</label>
-                        <?php if ($report['innovations_file']): ?>
-                        <div class="cr-file-item" style="margin-bottom:0.4rem;">
-                            <i class="fas fa-lightbulb"></i>
-                            <a href="<?php echo BASE_URL; ?>/uploads/documents/<?php echo htmlspecialchars($report['innovations_file']); ?>"
-                               target="_blank" style="color:var(--primary-600);text-decoration:none;font-size:0.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:12rem;">
-                                <?php echo htmlspecialchars($report['innovations_file']); ?>
-                            </a>
-                            <span style="margin-left:auto;font-size:0.68rem;color:var(--neutral-400);">current</span>
-                        </div>
-                        <?php endif; ?>
-                        <div class="cr-upload-zone" id="zone-innovations-edit" onclick="document.getElementById('innovations_file').click()">
-                            <input type="file" id="innovations_file" name="innovations_file" accept=".pdf,.doc,.docx">
-                            <div class="cr-upload-icon"><i class="fas fa-lightbulb"></i></div>
-                            <div class="cr-upload-label"><?php echo $report['innovations_file'] ? 'Click to replace' : 'Click to upload'; ?></div>
-                            <div class="cr-upload-sub">PDF, DOC, DOCX — max 10 MB</div>
-                        </div>
-                        <div class="cr-file-list" id="list-innovations"></div>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
 
-                <!-- Existing images -->
                 <?php if ($images): ?>
-                <div style="margin-bottom:1rem;">
-                    <p class="cr-label" style="margin-bottom:0.5rem;">Current Images <span style="font-weight:400;color:var(--neutral-400);font-size:0.7rem;">— click an image to mark it for deletion</span></p>
+                <div class="field">
+                    <p class="field-label">Current images <span class="field-optional">· select an image to mark it for removal</span></p>
                     <div class="cr-img-grid">
                         <?php foreach ($images as $img): ?>
-                        <div class="cr-existing-img" onclick="toggleDeleteImg(this)">
-                            <img src="<?php echo BASE_URL; ?>/uploads/pictures/<?php echo htmlspecialchars($img['image_path']); ?>" alt="">
-                            <label><span><i class="fas fa-trash-alt"></i> Remove</span></label>
-                            <input type="checkbox" name="delete_images[]" value="<?php echo (int)$img['id']; ?>"
-                                   style="display:none;" class="del-img-cb">
-                            <div class="cr-del-check"><i class="fas fa-times"></i></div>
+                        <div class="cr-existing-img" role="checkbox" aria-checked="false" aria-label="Remove this image" tabindex="0"
+                             onclick="toggleDeleteImg(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleDeleteImg(this);}">
+                            <img src="<?php echo BASE_URL; ?>/uploads/pictures/<?php echo htmlspecialchars(rawurlencode($img['image_path'])); ?>" alt="" loading="lazy">
+                            <input type="checkbox" name="delete_images[]" value="<?php echo (int)$img['id']; ?>" style="display:none;" class="del-img-cb">
+                            <span class="cr-del-label">Remove</span>
                         </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
                 <?php endif; ?>
 
-                <!-- New images -->
-                <div class="cr-field">
-                    <label class="cr-label">Add New Images <span style="font-weight:400;color:var(--neutral-400);font-size:0.7rem;">(optional)</span></label>
-                    <div class="cr-upload-zone" id="zone-images" onclick="document.getElementById('report_images').click()">
+                <div class="field cr-field" style="margin-bottom:0;">
+                    <label class="field-label" for="report_images">Add images <span class="field-optional">(up to 10)</span></label>
+                    <div class="cr-upload-zone" id="zone-images" role="button" tabindex="0" onclick="document.getElementById('report_images').click()">
                         <input type="file" id="report_images" name="report_images[]" multiple accept="image/*">
-                        <div class="cr-upload-icon"><i class="fas fa-images"></i></div>
-                        <div class="cr-upload-label">Click or drag &amp; drop images here</div>
-                        <div class="cr-upload-sub">JPG, PNG, GIF — up to 10 images</div>
+                        <div class="cr-upload-icon"><i class="fas fa-images" aria-hidden="true"></i></div>
+                        <div class="cr-upload-label">Choose or drop images</div>
+                        <div class="cr-upload-sub">JPG, PNG, GIF</div>
                     </div>
                     <div class="cr-img-grid" id="img-preview"></div>
                 </div>
+            </div>
+        </section>
 
-                <!-- Submit -->
-                <div style="border-top:1px solid var(--neutral-100);margin-top:1.5rem;padding-top:1.25rem;display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
-                    <button type="submit" id="submit-report-btn" class="modern-button modern-button-primary"
-                            data-loading-text="Saving changes…" style="min-width:10rem;">
-                        <i class="fas fa-save modern-button-icon"></i> Save Changes
-                    </button>
-                    <a href="view.php?id=<?php echo $reportId; ?>" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">
-                        Cancel
-                    </a>
-                </div>
+        <div class="cr-actions">
+            <a href="view.php?id=<?php echo $reportId; ?>" class="btn btn-secondary">Cancel</a>
+            <span class="meta cr-actions-status" id="edit-status" aria-live="polite"></span>
+            <div class="cr-actions-right">
+                <button type="submit" id="submit-report-btn" class="btn btn-primary" data-loading-text="Saving changes…">
+                    <i class="fas fa-check modern-button-icon" aria-hidden="true"></i> Save changes
+                </button>
             </div>
         </div>
-
     </form>
+</div>
+
+<aside class="cr-aside" aria-label="Sections">
+    <div class="panel panel-muted"><div class="panel-body">
+        <p class="meta">Sections</p>
+        <ol class="cr-index">
+            <?php foreach ($sections as $key => $title): ?>
+            <li><a href="#sec-<?php echo $key; ?>"><span class="meta"><?php echo $secNo($key); ?></span><?php echo htmlspecialchars($title); ?></a></li>
+            <?php endforeach; ?>
+        </ol>
+        <h2>Distribution</h2>
+        <p>Digital + physical copies that reached people this month. The total updates as you type.</p>
+    </div></div>
+</aside>
 </div>
 
 <script>
@@ -702,6 +667,14 @@ function updateTotalDistribution() {
     total.value = (parseInt(digital.value, 10) || 0) + (parseInt(physical.value, 10) || 0);
 }
 
+function zoneKey(input) {
+    return function(e) {
+        if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        input.click();
+    };
+}
+
 function setupUploadZone(zoneId, inputId, listId) {
     var zone  = document.getElementById(zoneId);
     var input = document.getElementById(inputId);
@@ -713,14 +686,16 @@ function setupUploadZone(zoneId, inputId, listId) {
         var ext = (file.name.split('.').pop()||'').toLowerCase();
         var icon = ext==='pdf'?'fa-file-pdf':'fa-file-word';
         var item = document.createElement('div'); item.className='cr-file-item';
-        item.innerHTML='<i class="fas '+icon+'"></i><span>'+file.name+'</span>'
+        item.innerHTML='<i class="fas '+icon+'" aria-hidden="true"></i><span class="cr-file-name"></span>'
             +'<span class="cr-file-size">'+fmtSize(file.size)+'</span>'
-            +'<button type="button" class="cr-file-remove" title="Remove"><i class="fas fa-times"></i></button>';
-        item.querySelector('.cr-file-remove').addEventListener('click',function(){ input.value=''; list.innerHTML=''; zone.style.borderColor=''; });
+            +'<button type="button" class="cr-file-remove" aria-label="Remove file"><i class="fas fa-times" aria-hidden="true"></i></button>';
+        item.querySelector('.cr-file-name').textContent=file.name;
+        item.querySelector('.cr-file-remove').addEventListener('click',function(){ input.value=''; list.innerHTML=''; zone.classList.remove('has-file'); });
         list.appendChild(item);
-        zone.style.borderColor='var(--success-400)';
+        zone.classList.add('has-file');
     }
     input.addEventListener('change', function(){ if(this.files&&this.files[0]) renderFile(this.files[0]); });
+    zone.addEventListener('keydown', zoneKey(input));
     zone.addEventListener('dragover',function(e){e.preventDefault();zone.classList.add('drag-over');});
     zone.addEventListener('dragleave',function(){zone.classList.remove('drag-over');});
     zone.addEventListener('drop',function(e){
@@ -743,7 +718,7 @@ function setupImageUpload() {
             var reader=new FileReader();
             reader.onload=function(e){
                 thumb.innerHTML='<img src="'+e.target.result+'" alt="">'
-                    +'<button type="button" class="cr-img-remove" data-idx="'+idx+'" title="Remove"><i class="fas fa-times"></i></button>';
+                    +'<button type="button" class="cr-img-remove" data-idx="'+idx+'" aria-label="Remove image"><i class="fas fa-times" aria-hidden="true"></i></button>';
                 thumb.querySelector('.cr-img-remove').addEventListener('click',function(){
                     imageFiles.splice(parseInt(this.dataset.idx,10),1);rebuildInput();renderPreviews();
                 });
@@ -759,6 +734,7 @@ function setupImageUpload() {
         if(files.length) showToast(imageFiles.length+' image'+(imageFiles.length!==1?'s':'')+' selected','success');
     }
     input.addEventListener('change',function(){addFiles(this.files);});
+    zone.addEventListener('keydown', zoneKey(input));
     zone.addEventListener('dragover',function(e){e.preventDefault();zone.classList.add('drag-over');});
     zone.addEventListener('dragleave',function(){zone.classList.remove('drag-over');});
     zone.addEventListener('drop',function(e){e.preventDefault();zone.classList.remove('drag-over');if(e.dataTransfer&&e.dataTransfer.files)addFiles(e.dataTransfer.files);});
@@ -768,6 +744,7 @@ window.toggleDeleteImg = function(el) {
     el.classList.toggle('marked');
     var cb = el.querySelector('.del-img-cb');
     if (cb) cb.checked = el.classList.contains('marked');
+    el.setAttribute('aria-checked', el.classList.contains('marked') ? 'true' : 'false');
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -787,6 +764,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateTotalDistribution();
 
     var form = document.getElementById('edit-form');
+    form.addEventListener('input', function() { document.getElementById('edit-status').textContent = 'Unsaved changes'; });
     form.addEventListener('submit', function(e) {
         if (!validateReportDate()) { e.preventDefault(); return; }
         updateTotalDistribution();

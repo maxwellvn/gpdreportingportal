@@ -13,6 +13,9 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $baseUrl = defined('BASE_URL') ? BASE_URL : '';
+$themeCssVersion = @filemtime(__DIR__ . '/assets/css/modern-theme.css') ?: time();
+$utilCssVersion = @filemtime(__DIR__ . '/assets/css/utilities.css') ?: time();
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -20,516 +23,142 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPD Reporting Portal</title>
+    <meta name="description" content="Monthly reporting for Rhapsody of Realities Global Partnership Distribution zones.">
     <link rel="icon" type="image/webp" href="<?php echo $baseUrl; ?>/assets/images/logo-rc.webp">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <link href="<?php echo $baseUrl; ?>/assets/css/modern-theme.css?v=<?php echo $themeCssVersion; ?>" rel="stylesheet">
+    <link href="<?php echo $baseUrl; ?>/assets/css/utilities.css?v=<?php echo $utilCssVersion; ?>" rel="stylesheet">
     <style>
-        :root {
-            --portal-blue: #0087cd;
-            --portal-blue-dark: #004467;
-            --portal-bg: #e3e3e3;
-            --portal-text: rgba(0, 0, 0, 0.9);
-        }
+        .landing-wrap { max-width: 1180px; margin: 0 auto; padding: 0 var(--gutter); }
 
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            color: var(--portal-text);
-            background: var(--portal-bg);
-        }
-
-        a {
-            color: inherit;
-            text-decoration: none;
-        }
-
-        /* ─── hero ─── */
-        .portal-home {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            min-height: 640px;
-            overflow: hidden;
-            background:
-                /* Group 1 — Ellipse 11 (low-left) */
-                radial-gradient(42% 58% at 19.5% 90%, rgba(255, 245, 0, 0.95) 0%, rgba(255, 245, 0, 0.58) 44%, transparent 76%),
-                /* Group 1 — Ellipse 12 (bottom-center) */
-                radial-gradient(30% 42% at 60.5% 104%, rgba(255, 245, 0, 0.9) 0%, rgba(255, 245, 0, 0.52) 44%, transparent 74%),
-                /* Group 1 — Ellipse 13 (lower-right) */
-                radial-gradient(30% 42% at 88% 92%, rgba(255, 245, 0, 0.88) 0%, rgba(255, 245, 0, 0.5) 44%, transparent 74%),
-                var(--portal-bg);
-        }
-
-        /* Ellipse 14 — large soft gray glow over the glass strips */
-        .top-glow {
-            position: absolute;
-            left: 42.8%;
-            top: 7.5%;
-            width: 143%;
-            height: 106%;
-            transform: translate(-50%, -50%);
-            border-radius: 50%;
-            background: rgba(214, 214, 214, 0.88);
-            filter: blur(120px);
-            pointer-events: none;
-            z-index: 2;
-        }
-
-        /* Frame 42 — refracted glass strips */
-        .glass-strips {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            gap: 0;
-            opacity: 0.44;
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .glass-strip {
-            width: 3.75rem;
-            flex: 0 0 auto;
-            background:
-                linear-gradient(90deg, rgba(217, 217, 217, 0.4) 0%, rgba(120, 120, 120, 0.18) 50%, rgba(53, 52, 52, 0.4) 100%),
-                linear-gradient(180deg, rgba(217, 217, 217, 0.8) 0%, rgba(217, 217, 217, 0.4) 71%, rgba(217, 217, 217, 0.1) 100%);
-            background-blend-mode: multiply, normal;
-            box-shadow: inset 1px 0 rgba(255, 255, 255, 0.6), inset -1px 0 rgba(0, 0, 0, 0.05);
-            -webkit-backdrop-filter: blur(8px);
-            backdrop-filter: blur(8px);
-        }
-
-        .home-content {
-            position: relative;
-            z-index: 4;
-            flex: 0 0 auto;
-            width: min(1309px, calc(100% - 3rem));
-            margin: 0 auto;
-            padding: 23px 0 0;
-        }
-
-        /* header nav styles live in layouts/landing-header.php */
-
-        /* ─── hero text ─── */
-        .hero {
-            width: min(995px, 100%);
-            margin: 72px auto clamp(32px, 5vh, 60px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 18px;
-            text-align: center;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 10px;
-            border-radius: 100px;
-            background: rgba(255, 255, 255, 0.6);
-            font-size: 14px;
-            font-weight: 500;
-            color: #000;
-        }
-
-        .hero-title {
-            margin: 0;
-            font-size: clamp(3.25rem, 7.1vw, 5.625rem);
-            line-height: 1.06;
-            font-weight: 600;
-            letter-spacing: -0.01em;
-            color: #0b4865;
-            background: linear-gradient(180deg, #0e5278 0%, #063248 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .hero-title-accent {
-            display: block;
-            margin-top: 0.02em;
-            font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
-            font-style: italic;
-            font-weight: 500;
-            font-size: 1.16em;
-            line-height: 0.96;
-            letter-spacing: 0;
-            color: #0a8fd1;
-            background: linear-gradient(180deg, #0a8fd1 0%, #075286 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .hero-description {
-            width: min(847px, 100%);
-            margin: 0;
-            font-size: clamp(1rem, 1.6vw, 1.25rem);
-            line-height: 1.2;
-            font-weight: 500;
-            color: #000;
-        }
-
-        /* Frame 30 — "View upcoming Events" pill */
-        .hero-events {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            min-height: 35px;
-            margin-top: 4px;
-            padding: 8px 24px;
-            border-radius: 100px;
-            font-size: 15px;
-            font-weight: 500;
-            line-height: 1;
+        /* Hero: navy to royal, bright-blue glow, faint gold star ring (same technique as .auth-aside) */
+        .landing-hero {
+            --overlap: clamp(5rem, 16vw, 13rem);
+            position: relative; isolation: isolate; overflow: hidden;
+            padding-bottom: calc(var(--overlap) + var(--spacing-16));
             color: #fff;
-            white-space: nowrap;
-            cursor: pointer;
-            background: linear-gradient(180deg, rgba(0, 135, 205, 0.85) 0%, rgba(0, 43, 65, 0.85) 100%);
-            box-shadow: inset 0 1.5px 3px rgba(255, 255, 255, 0.5);
-            transition: transform 0.18s ease, box-shadow 0.18s ease;
+            background:
+                radial-gradient(70% 90% at 85% 0%, rgba(0, 144, 216, 0.5) 0%, rgba(0, 144, 216, 0) 60%),
+                linear-gradient(165deg, var(--brand-royal) 0%, var(--brand-navy) 75%);
+        }
+        /* gold star ring comes from .star-ring::after in modern-theme.css; place it top-right here */
+        .landing-hero.star-ring::after { right: -10rem; top: -12rem; bottom: auto; opacity: 0.9; }
+        .landing-hero-copy { padding-top: var(--spacing-16); max-width: 44rem; }
+        .landing-kicker { display: inline-flex; align-items: center; gap: var(--spacing-2); font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.75); }
+        .landing-kicker::before { content: ""; width: 1.5rem; height: 1px; background: var(--brand-gold); }
+        .landing-hero h1 { margin-top: var(--spacing-5); font-size: clamp(2.75rem, 6vw, 4.25rem); line-height: 1.02; font-weight: 500; letter-spacing: -0.035em; color: #fff; }
+        .landing-hero .lead { margin-top: var(--spacing-5); max-width: 32rem; font-size: var(--text-lg); line-height: 1.5; color: rgba(255, 255, 255, 0.75); }
+        .landing-cta { display: flex; flex-wrap: wrap; gap: var(--spacing-3); margin-top: var(--spacing-8); }
+        .btn-on-dark { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.45); }
+        @media (hover: hover) and (pointer: fine) {
+            .btn-on-dark:hover { background: rgba(255, 255, 255, 0.1); border-color: #fff; }
         }
 
-        .hero-events:hover {
-            transform: translateY(-1px);
-            box-shadow: inset 0 1.5px 3px rgba(255, 255, 255, 0.6), 0 8px 20px rgba(0, 135, 205, 0.28);
+        /* Product shot: browser frame overlapping the hero's bottom edge */
+        .landing-shot { position: relative; z-index: 1; margin-top: calc(-1 * clamp(5rem, 16vw, 13rem)); }
+        .landing-frame { border-radius: var(--radius-xl); background: #fff; box-shadow: var(--shadow-xl), 0 0 0 1px rgba(255, 255, 255, 0.1); overflow: hidden; outline: 1px solid rgba(16, 33, 38, 0.08); outline-offset: -1px; }
+        .landing-frame-bar { display: flex; align-items: center; gap: 6px; height: 2.25rem; padding: 0 var(--spacing-4); background: var(--neutral-50); border-bottom: 1px solid var(--hairline); }
+        .landing-frame-bar span { width: 9px; height: 9px; border-radius: 50%; background: var(--neutral-300); }
+        .landing-frame-bar em { margin-left: var(--spacing-3); font-style: normal; font-family: var(--font-mono); font-size: 0.6875rem; color: var(--neutral-500); }
+        .landing-frame img { display: block; width: 100%; height: auto; }
+
+        /* How reporting works: numbered rows on thin gold rules */
+        .landing-process { padding-block: var(--spacing-16); }
+        .landing-process .meta { color: var(--brand-gold-deep); }
+        .landing-process h2 { margin-top: var(--spacing-3); font-size: clamp(1.75rem, 3.5vw, 2.5rem); line-height: 1.1; font-weight: 500; letter-spacing: -0.03em; }
+        .landing-steps { list-style: none; margin: var(--spacing-10) 0 0; padding: 0; border-bottom: 1px solid var(--brand-gold); }
+        .landing-steps li { display: grid; grid-template-columns: 4rem minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--spacing-6); align-items: baseline; padding: var(--spacing-6) 0; border-top: 1px solid var(--brand-gold); }
+        .landing-steps .num { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--brand-gold-deep); font-variant-numeric: tabular-nums; }
+        .landing-steps h3 { font-size: var(--text-lg); font-weight: 500; letter-spacing: -0.01em; }
+        .landing-steps p { color: var(--slate); line-height: 1.6; }
+
+        .landing-footer { background: var(--brand-navy); color: rgba(255, 255, 255, 0.75); padding: var(--spacing-10) 0; font-size: var(--text-sm); }
+        .landing-footer .landing-wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-5); }
+        .landing-footer-brand { display: inline-flex; align-items: center; gap: var(--spacing-2); color: #fff; font-weight: 500; }
+        .landing-footer-brand img { width: 1.75rem; height: 1.75rem; }
+        .landing-footer nav { display: flex; gap: var(--spacing-5); }
+        .landing-footer a { color: #fff; }
+        .nowrap { white-space: nowrap; }
+
+        @media (max-width: 760px) {
+            .landing-steps li { grid-template-columns: 2.5rem minmax(0, 1fr); gap: var(--spacing-2) var(--spacing-4); }
+            .landing-steps p { grid-column: 2; }
         }
-
-        /* ─── dashboard preview ─── */
-        .dashboard-wrap {
-            position: relative;
-            z-index: 3;
-            flex: 0 0 auto;
-            width: min(1207px, 84vw);
-            margin: auto auto 0;
-        }
-
-        /* Ellipse 10 — bright yellow flare hugging the dashboard's top edge */
-        .dashboard-flare {
-            position: absolute;
-            top: -16px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 96%;
-            height: 130px;
-            border-radius: 50%;
-            background: radial-gradient(ellipse at center, rgba(255, 245, 0, 1) 0%, rgba(255, 245, 0, 0.66) 45%, transparent 74%);
-            filter: blur(45px);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .dashboard-frame {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            aspect-ratio: 1207 / 444;
-            padding: 10px 10px 0;
-            border-radius: 20px 20px 0 0;
-            background: rgba(0, 135, 205, 0.4);
-            overflow: hidden;
-            box-shadow: 0 -1px 60px rgba(0, 0, 0, 0.1);
-        }
-
-        .dashboard-frame img {
-            display: block;
-            width: 100%;
-            height: auto;
-            border-radius: 12px 12px 0 0;
-        }
-
-        /* Ellipse 15 — soft white glow easing the dashboard into the footer */
-        .hero-into-next {
-            position: absolute;
-            left: 50%;
-            bottom: -90px;
-            transform: translateX(-50%);
-            width: 124%;
-            height: 250px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.5);
-            filter: blur(55px);
-            z-index: 5;
-            pointer-events: none;
-        }
-
-
-        /* ─── GSAP reveal ─── */
-        .hero-title .word {
-            display: inline-block;
-            padding-bottom: 0.12em;
-            background: linear-gradient(180deg, #0e5278 0%, #063248 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            will-change: transform, opacity;
-        }
-
-        .hero-description .word {
-            display: inline-block;
-            will-change: transform, opacity;
-        }
-
-        /* pre-hide animated blocks (only while the animation is armed) to avoid a flash */
-        .gsap-anim .home-nav,
-        .gsap-anim .hero-badge,
-        .gsap-anim .hero-title,
-        .gsap-anim .hero-description,
-        .gsap-anim .hero-events,
-        .gsap-anim .top-glow,
-        .gsap-anim .dashboard-wrap,
-        .gsap-anim .hero-into-next {
-            opacity: 0;
-        }
-
-        /* ─── tablet (641–1024px) ─── */
-        @media (max-width: 1024px) {
-            .home-content {
-                width: min(100% - 2.5rem, 920px);
-            }
-
-            .hero {
-                margin-top: 72px;
-            }
-
-            .hero-title {
-                font-size: clamp(3rem, 8vw, 4.5rem);
-            }
-
-            .hero-events {
-                margin-top: -2px;
-                padding: 8px 22px;
-                font-size: 14px;
-            }
-
-            .dashboard-wrap {
-                width: 88vw;
-            }
-        }
-
-        /* ─── mobile (≤640px) ─── */
         @media (max-width: 640px) {
-            .portal-home {
-                height: 100svh;
-                min-height: 560px;
-            }
-
-            .glass-strips {
-                gap: 0;
-            }
-
-            .glass-strip {
-                width: 2.5rem;
-            }
-
-            .top-glow {
-                filter: blur(80px);
-            }
-
-            .home-content {
-                width: min(100% - 1.5rem, 560px);
-                padding-top: 14px;
-            }
-
-            .hero {
-                margin-top: 52px;
-                gap: 14px;
-            }
-
-            .hero-badge {
-                font-size: 12.5px;
-                padding: 9px 14px;
-            }
-
-            .hero-title {
-                font-size: clamp(2.25rem, 12vw, 3.1rem);
-            }
-
-            .hero-description {
-                font-size: 1rem;
-                line-height: 1.4;
-            }
-
-            .hero-events {
-                margin-top: -2px;
-                min-height: 32px;
-                padding: 7px 20px;
-                font-size: 13.5px;
-            }
-
-            .dashboard-wrap {
-                width: 92vw;
-            }
-
-            .hero-into-next {
-                height: 110px;
-                bottom: -52px;
-                filter: blur(34px);
-            }
-        }
-
-        /* short / zoomed-in / scaled viewports — keep the hero compact so it never crowds the dashboard */
-        @media (max-height: 640px) {
-            .hero {
-                margin-top: 28px;
-                gap: 10px;
-            }
-
-            .hero-title {
-                font-size: clamp(2.1rem, 6.4vh, 4rem);
-                line-height: 1.05;
-            }
-
-            .hero-badge {
-                font-size: 12.5px;
-                padding: 8px 14px;
-            }
-
-            .hero-description {
-                font-size: clamp(0.9rem, 2.4vh, 1.1rem);
-                line-height: 1.35;
-            }
-
-            .hero-events {
-                margin-top: 0;
-                min-height: 30px;
-                padding: 6px 18px;
-                font-size: 13px;
-            }
+            .landing-hero-copy { padding-top: var(--spacing-8); }
+            .landing-cta .btn { flex: 1 1 100%; }
+            .landing-hero { padding-bottom: calc(var(--overlap) + var(--spacing-10)); }
+            .landing-hero::after { width: 26rem; height: 26rem; right: -15rem; top: -6rem; }
+            .landing-frame img { aspect-ratio: 1 / 1; object-fit: cover; object-position: left top; }
+            .landing-frame-bar em { display: none; }
+            .landing-process { padding-block: var(--spacing-12); }
+            .landing-footer .landing-wrap { flex-direction: column; align-items: flex-start; }
         }
     </style>
-    <script>
-        (function () {
-            var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            if (!reduce) document.documentElement.classList.add('gsap-anim');
-        })();
-    </script>
 </head>
-<body>
-    <main class="portal-home">
-        <div class="glass-strips" aria-hidden="true">
-            <?php for ($i = 0; $i < 48; $i++): ?>
-                <span class="glass-strip"></span>
-            <?php endfor; ?>
+<body class="brand-page">
+    <header class="landing-hero star-ring">
+        <?php include __DIR__ . '/layouts/landing-header.php'; ?>
+        <div class="landing-wrap">
+            <div class="landing-hero-copy">
+                <p class="landing-kicker">Rhapsody of Realities &middot; Global Partnership Distribution</p>
+                <h1 id="home-title">Every zone&rsquo;s monthly report, in one place.</h1>
+                <p class="lead">Submit the month, see what is still due, and follow your zone across the year.</p>
+                <div class="landing-cta">
+                    <a class="btn btn-brand btn-lg" href="<?php echo $baseUrl; ?>/login.php">Sign in</a>
+                    <a class="btn btn-on-dark btn-lg" href="<?php echo $baseUrl; ?>/register.php">Register your zone</a>
+                </div>
+            </div>
         </div>
+    </header>
 
-        <div class="top-glow" aria-hidden="true"></div>
+    <main>
+        <figure class="landing-shot landing-wrap">
+            <div class="landing-frame">
+                <div class="landing-frame-bar" aria-hidden="true"><span></span><span></span><span></span><em>GPD Reporting Portal &middot; Statistics</em></div>
+                <img src="<?php echo $baseUrl; ?>/assets/images/portal-overview.png" width="2880" height="1800"
+                     alt="Statistics page showing network totals: reports submitted, compliance rate, copies sponsored, distributions and souls won, with a monthly breakdown">
+            </div>
+        </figure>
 
-        <div class="home-content">
-            <?php include __DIR__ . '/layouts/landing-header.php'; ?>
-
-            <section class="hero" aria-labelledby="home-title">
-                <div class="hero-badge">Reporting made easy, capture all your zonal progress!</div>
-                <h1 class="hero-title" id="home-title">Manage Reports with <span class="hero-title-accent">Confidence</span></h1>
-                <p class="hero-description">Access reports, track submissions, and manage reporting activities through a secure and centralized platform.</p>
-                <a class="hero-events" href="<?php echo $baseUrl; ?>/login.php">Get started now</a>
-            </section>
-        </div>
-
-        <div class="dashboard-wrap">
-            <div class="dashboard-flare" aria-hidden="true"></div>
-            <section class="dashboard-frame" aria-label="Dashboard preview">
-                <img src="<?php echo $baseUrl; ?>/assets/images/home-dashboard.png" alt="GPD Reporting Portal dashboard preview">
-            </section>
-        </div>
-
-        <div class="hero-into-next" aria-hidden="true"></div>
+        <section class="landing-process landing-wrap" aria-labelledby="process-title">
+            <p class="meta">How reporting works</p>
+            <h2 id="process-title">Three steps, once a month.</h2>
+            <ol class="landing-steps">
+                <li>
+                    <span class="num">01</span>
+                    <h3>Register your zone</h3>
+                    <p>Request an account, then message <span class="nowrap">@gpd-support</span> on KingsChat to have it approved.</p>
+                </li>
+                <li>
+                    <span class="num">02</span>
+                    <h3>Submit the month</h3>
+                    <p>Enter copies, distributions and outreach figures. Drafts save, so you can finish later.</p>
+                </li>
+                <li>
+                    <span class="num">03</span>
+                    <h3>Follow your zone</h3>
+                    <p>See which months are in, which are still due, and how the totals move over the year.</p>
+                </li>
+            </ol>
+        </section>
     </main>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <script>
-        (function () {
-            var root = document.documentElement;
-            var armed = root.classList.contains('gsap-anim');
-
-            // No GSAP (CDN blocked) or reduced motion → show everything, bail.
-            if (!window.gsap || !armed) {
-                root.classList.remove('gsap-anim');
-                return;
-            }
-
-            // Split an element's text into <span class="word"> units, preserving
-            // spaces and leaving any child elements (e.g. the serif accent) intact.
-            function splitWords(selector) {
-                var el = document.querySelector(selector);
-                if (!el) return;
-                var frag = document.createDocumentFragment();
-                Array.prototype.forEach.call(el.childNodes, function (node) {
-                    if (node.nodeType === 3) {
-                        node.textContent.split(/(\s+)/).forEach(function (part) {
-                            if (part === '') return;
-                            if (/^\s+$/.test(part)) {
-                                frag.appendChild(document.createTextNode(part));
-                            } else {
-                                var w = document.createElement('span');
-                                w.className = 'word';
-                                w.textContent = part;
-                                frag.appendChild(w);
-                            }
-                        });
-                    } else {
-                        frag.appendChild(node.cloneNode(true));
-                    }
-                });
-                el.innerHTML = '';
-                el.appendChild(frag);
-            }
-
-            splitWords('.hero-title');
-            splitWords('.hero-description');
-
-            // reveal the containers that were pre-hidden (words start hidden instead)
-            gsap.set(['.hero-title', '.hero-description'], { opacity: 1 });
-
-            var finePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
-
-            var tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-
-            // everything enters at the same time (position 0), each keeping its own motion
-            tl.fromTo('.home-nav', { y: -18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, 0)
-              .fromTo('.hero-badge', { y: -18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, 0)
-              .fromTo('.hero-title .word, .hero-title-accent',
-                      { y: -40, opacity: 0 },
-                      { y: 0, opacity: 1, duration: 0.85, stagger: 0.06 }, 0)
-              .fromTo('.hero-description .word',
-                      { y: -14, opacity: 0 },
-                      { y: 0, opacity: 1, duration: 0.7, stagger: 0.015 }, 0)
-              .fromTo('.hero-events',
-                      { y: -14, opacity: 0 },
-                      { y: 0, opacity: 1, duration: 0.85 }, 0)
-              .fromTo('.top-glow',
-                      { opacity: 0 }, { opacity: 1, duration: 1.1 }, 0)
-              .fromTo('.dashboard-wrap',
-                      { y: 80, opacity: 0, scale: 0.97 },
-                      { y: 0, opacity: 1, scale: 1, duration: 1.2, ease: 'expo.out', transformOrigin: '50% 0%' }, 0)
-              .fromTo('.hero-into-next',
-                      { opacity: 0 }, { opacity: 1, duration: 1.2 }, 0);
-
-            // ─── premium interactions ───
-            if (finePointer) {
-                // gentle parallax on the big soft glow as the cursor moves
-                var glow = document.querySelector('.top-glow');
-                if (glow) {
-                    // animate x/y in px so the translate(-50%, -50%) centering is preserved
-                    var gx = gsap.quickTo(glow, 'x', { duration: 0.9, ease: 'power3' });
-                    var gy = gsap.quickTo(glow, 'y', { duration: 0.9, ease: 'power3' });
-                    window.addEventListener('mousemove', function (e) {
-                        var nx = (e.clientX / window.innerWidth) - 0.5;
-                        var ny = (e.clientY / window.innerHeight) - 0.5;
-                        gx(nx * 26);
-                        gy(ny * 20);
-                    });
-                }
-            }
-        })();
-    </script>
+    <footer class="landing-footer">
+        <div class="landing-wrap">
+            <span class="landing-footer-brand">
+                <img src="<?php echo $baseUrl; ?>/assets/images/logo-rc.webp" alt="" width="28" height="28">
+                GPD Reporting Portal
+            </span>
+            <nav aria-label="Footer">
+                <a href="<?php echo $baseUrl; ?>/login.php">Sign in</a>
+                <a href="<?php echo $baseUrl; ?>/register.php">Register</a>
+            </nav>
+            <span>&copy; <?php echo date('Y'); ?> Rhapsody of Realities &middot; Global Partnership Distribution</span>
+        </div>
+    </footer>
 </body>
 </html>

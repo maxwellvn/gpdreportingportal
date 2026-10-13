@@ -1,10 +1,4 @@
 <?php
-// Enable error reporting for debugging
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-ini_set('error_log', 'error.log');
-
 require_once 'config/config.php';
 require_once 'includes/auth.php';
 require_once 'includes/functions.php';
@@ -156,7 +150,7 @@ $daysLeftInMonth    = 0;
 $overdueCount       = 0;
 $totalMonthsExpected = 0;
 
-if (!isset($user['role']) || $user['role'] === 'user' || $user['role'] === 'admin-manager') {
+if (!isset($user['role']) || $user['role'] === ROLE_RZM || $user['role'] === 'admin-manager') {
     try {
         // Last submitted report ID
         $stmt = $conn->prepare("SELECT id FROM reports WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
@@ -202,7 +196,7 @@ $missingMonths = [];
 $currentMonthSubmitted = true;
 $currentMonthDaysLate = 0;
 
-if (!isset($user['role']) || $user['role'] === 'user') {
+if (!isset($user['role']) || $user['role'] === ROLE_RZM) {
     try {
         // Start from Jan 1 of the current year.
         // Only push forward to registration month if the user registered mid-way through THIS year.
@@ -282,7 +276,7 @@ $allTimePartners = 0;
 $allTimeChurches = 0;
 $allTimeTotal  = 0;
 
-if (!isset($user['role']) || $user['role'] === 'user' || $user['role'] === 'admin-manager') {
+if (!isset($user['role']) || $user['role'] === ROLE_RZM || $user['role'] === 'admin-manager') {
     try {
         $atsStmt = $conn->prepare("
             SELECT COUNT(*) as total,
@@ -314,620 +308,371 @@ if (!isset($user['role']) || $user['role'] === 'user' || $user['role'] === 'admi
     }
 }
 
+// ── Role-scoped overview data (read-only) ──────────────────────────────
+$isAdminRole   = ($user['role'] ?? '') === 'admin';
+$isManagerRole = ($user['role'] ?? '') === 'admin-manager';
+$isRzmRole     = !$isAdminRole && !$isManagerRole;
+$managerRegion = $isManagerRole ? (string)($user['region'] ?? '') : '';
+$totalUsers       = 0;
+$pendingApprovals = 0;
+$rzmTotal         = 0;
+$rzmMissingMonth  = 0;
+
+// Admin managers oversee a region: swap their personal totals for region-scoped ones,
+// using the same u.region scoping as pages/reports/list.php.
+if ($isManagerRole) {
+    try {
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) AS cnt,
+                   COALESCE(SUM(r.total_copies), 0)       AS total_copies,
+                   COALESCE(SUM(r.total_distribution), 0) AS total_distributions,
+                   COALESCE(SUM(r.souls_won), 0)          AS total_souls,
+                   COALESCE(SUM(r.new_partners), 0)       AS total_new_partners,
+                   COALESCE(SUM(r.rhapsody_cells), 0)     AS total_rhapsody_cells,
+                   COALESCE(SUM(r.new_churches), 0)       AS total_new_churches,
+                   COALESCE(SUM(CASE WHEN MONTH(r.report_month) = MONTH(CURRENT_DATE()) THEN r.total_copies ELSE 0 END), 0) AS month_copies
+            FROM reports r JOIN users u ON r.user_id = u.id
+            WHERE u.region = ? AND YEAR(r.report_month) = ?
+        ");
+        $stmt->execute([$managerRegion, $currentYear]);
+        $rs = $stmt->fetch() ?: [];
+        $reportsCount       = (int)($rs['cnt'] ?? 0);
+        $totalCopies        = (int)($rs['total_copies'] ?? 0);
+        $totalDistributions = (int)($rs['total_distributions'] ?? 0);
+        $totalSoulsWon      = (int)($rs['total_souls'] ?? 0);
+        $totalNewPartners   = (int)($rs['total_new_partners'] ?? 0);
+        $totalRhapsodyCells = (int)($rs['total_rhapsody_cells'] ?? 0);
+        $totalNewChurches   = (int)($rs['total_new_churches'] ?? 0);
+        $monthlyTotal       = (int)($rs['month_copies'] ?? 0);
+
+        $stmt = $conn->prepare("
+            SELECT r.*, COALESCE(u.name, 'Unknown') AS name, u.zone
+            FROM reports r JOIN users u ON r.user_id = u.id
+            WHERE u.region = ? AND YEAR(r.report_month) = ?
+            ORDER BY r.created_at DESC LIMIT 5
+        ");
+        $stmt->execute([$managerRegion, $currentYear]);
+        $recentReports = $stmt->fetchAll() ?: [];
+    } catch (PDOException $e) {
+        error_log('Dashboard region stats error: ' . $e->getMessage());
+    }
+}
+
+// Who still owes a report this month (all regions for admin, own region for admin manager)
+if (!$isRzmRole) {
+    try {
+        $regionSql = $isManagerRole ? ' AND u.region = ?' : '';
+        $params    = $isManagerRole ? [$managerRegion] : [];
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN NOT EXISTS (
+                         SELECT 1 FROM reports r WHERE r.user_id = u.id
+                           AND YEAR(r.report_month) = YEAR(CURRENT_DATE())
+                           AND MONTH(r.report_month) = MONTH(CURRENT_DATE())
+                       ) THEN 1 ELSE 0 END) AS missing
+            FROM users u
+            WHERE u.role = ? AND u.active = 1" . $regionSql);
+        $stmt->execute(array_merge([ROLE_RZM], $params));
+        $rc = $stmt->fetch() ?: [];
+        $rzmTotal        = (int)($rc['total'] ?? 0);
+        $rzmMissingMonth = (int)($rc['missing'] ?? 0);
+    } catch (PDOException $e) {
+        error_log('Dashboard RZM coverage error: ' . $e->getMessage());
+    }
+}
+
+if ($isAdminRole) {
+    try {
+        $uc = $conn->query("SELECT COUNT(*) AS total, SUM(CASE WHEN active = 0 THEN 1 ELSE 0 END) AS pending FROM users")->fetch() ?: [];
+        $totalUsers       = (int)($uc['total'] ?? 0);
+        $pendingApprovals = (int)($uc['pending'] ?? 0);
+    } catch (PDOException $e) {
+        error_log('Dashboard user counts error: ' . $e->getMessage());
+    }
+}
+
+$h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+$plural = fn(int $n, string $word) => $n . ' ' . $word . ($n === 1 ? '' : 's');
+$monthLabel = date('F Y');
+$pastOverdue = array_values(array_filter($missingMonths, fn($m) => !$m['is_current'] && $m['days_late'] > 0));
+
 // Include header
 require_once 'layouts/header.php';
 ?>
 
 <style>
-/* ── Dashboard ── */
-.db-page { max-width: 1060px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
-
-/* Top bar */
-.db-topbar { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.75rem; }
-.db-topbar-left h1 { font-size:1.2rem; font-weight:700; color:var(--neutral-900); margin:0 0 0.15rem; }
-.db-topbar-left p  { font-size:0.8rem; color:var(--neutral-500); margin:0; }
-.db-topbar-actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
-
-/* ── Notification banners ── */
-.db-banner { display:flex; align-items:center; gap:0.75rem; padding:0.75rem 1.1rem; border-radius:var(--radius-md); font-size:0.8125rem; margin-bottom:0.6rem; border:1px solid; }
-.db-banner-danger  { background:var(--danger-50);  border-color:var(--danger-200);  color:var(--danger-800); }
-.db-banner-warning { background:var(--warning-50); border-color:var(--warning-200); color:var(--warning-800); }
-.db-banner-info    { background:var(--primary-50); border-color:var(--primary-200); color:var(--primary-800); }
-.db-banner-success { background:var(--success-50); border-color:var(--success-200); color:var(--success-800); }
-.db-banner-icon { font-size:0.85rem; flex-shrink:0; }
-.db-banner-text { flex:1; }
-.db-banner-text strong { font-weight:600; }
-.db-banner-text span { opacity:0.8; }
-.db-banner-action { font-size:0.78rem; font-weight:600; color:inherit; text-decoration:none; white-space:nowrap; border:1px solid currentColor; border-radius:var(--radius-sm); padding:0.2rem 0.6rem; opacity:0.85; }
-.db-banner-action:hover { opacity:1; }
-
-/* ── Control Center (What To Do Now) ── */
-.db-control { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; overflow:hidden; margin-bottom:1.5rem; }
-.db-control-head { padding:0.85rem 1.25rem; border-bottom:1px solid var(--neutral-200); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; }
-.db-control-head h2 { font-size:0.8125rem; font-weight:700; color:var(--neutral-900); margin:0; text-transform:uppercase; letter-spacing:0.05em; }
-.db-control-body { padding:1.1rem 1.25rem; display:flex; flex-direction:column; gap:0.6rem; }
-
-/* Status row inside control center */
-.db-status-row { display:flex; align-items:center; gap:0.875rem; padding:0.75rem 1rem; border-radius:var(--radius-md); border:1px solid var(--neutral-200); background:var(--neutral-50); }
-.db-status-row.done   { background:var(--success-50);  border-color:var(--success-200); }
-.db-status-row.overdue{ background:var(--danger-50);   border-color:var(--danger-200); }
-.db-status-row.due    { background:var(--warning-50);  border-color:var(--warning-200); }
-.db-status-dot { width:0.55rem; height:0.55rem; border-radius:50%; flex-shrink:0; }
-.db-status-row.done    .db-status-dot { background:var(--success-500); }
-.db-status-row.overdue .db-status-dot { background:var(--danger-500); }
-.db-status-row.due     .db-status-dot { background:var(--warning-500); }
-.db-status-row         .db-status-dot { background:var(--neutral-400); }
-.db-status-main { flex:1; }
-.db-status-main strong { font-size:0.85rem; font-weight:600; color:var(--neutral-900); display:block; }
-.db-status-main span   { font-size:0.775rem; color:var(--neutral-500); }
-.db-status-action { font-size:0.78rem; font-weight:600; white-space:nowrap; }
-
-/* ── Quick links strip ── */
-.db-quicklinks { display:grid; grid-template-columns:repeat(4,1fr); gap:0.75rem; margin-bottom:1.5rem; }
-@media(max-width:768px){ .db-quicklinks { grid-template-columns:repeat(2,1fr); } }
-@media(max-width:400px){ .db-quicklinks { grid-template-columns:1fr 1fr; } }
-.db-ql { display:flex; flex-direction:column; align-items:flex-start; gap:0.3rem; padding:0.9rem 1rem; border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; text-decoration:none; transition:border-color 0.15s, box-shadow 0.15s; }
-.db-ql:hover { border-color:var(--primary-300); box-shadow:0 0 0 3px var(--primary-50); }
-.db-ql-icon { font-size:1rem; color:var(--primary-600); }
-.db-ql-label { font-size:0.8125rem; font-weight:600; color:var(--neutral-900); }
-.db-ql-sub   { font-size:0.72rem; color:var(--neutral-500); }
-
-/* ── Two-column layout ── */
-.db-grid { display:grid; grid-template-columns:1fr 300px; gap:1.25rem; margin-bottom:1.5rem; }
-@media(max-width:860px){ .db-grid { grid-template-columns:1fr; } }
-
-/* ── Section card ── */
-.db-section { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; overflow:hidden; margin-bottom:1.25rem; }
-.db-section:last-child { margin-bottom:0; }
-.db-section-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; padding:0.85rem 1.25rem; border-bottom:1px solid var(--neutral-200); }
-.db-section-head h2 { font-size:0.8125rem; font-weight:700; color:var(--neutral-900); margin:0; text-transform:uppercase; letter-spacing:0.05em; }
-
-/* Table tweaks */
-.db-section .modern-table th { font-size:0.7rem; padding:0.6rem 1rem; }
-.db-section .modern-table td { font-size:0.8125rem; padding:0.7rem 1rem; color:var(--neutral-700); }
-
-/* ── Stat grid ── */
-.db-stats { display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--neutral-200); border:1px solid var(--neutral-200); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1.5rem; }
-@media(min-width:640px)  { .db-stats { grid-template-columns:repeat(3,1fr); } }
-@media(min-width:1024px) { .db-stats { grid-template-columns:repeat(4,1fr); } }
-.db-stat { background:#fff; padding:1.1rem 1.25rem; display:flex; flex-direction:column; gap:0.2rem; }
-.db-stat-label { font-size:0.7rem; font-weight:500; color:var(--neutral-400); text-transform:uppercase; letter-spacing:0.04em; }
-.db-stat-value { font-size:1.4rem; font-weight:700; color:var(--neutral-900); line-height:1.2; }
-.db-stat-link  { font-size:0.72rem; color:var(--primary-600); margin-top:0.1rem; }
-.db-stat-link:hover { text-decoration:underline; }
-
-/* ── Progress / sidebar ── */
-.db-prog-item { display:flex; align-items:center; justify-content:space-between; padding:0.7rem 1.25rem; border-bottom:1px solid var(--neutral-100); font-size:0.82rem; }
-.db-prog-item:last-child { border-bottom:none; }
-.db-prog-label { color:var(--neutral-500); }
-.db-prog-value { font-weight:700; color:var(--neutral-900); }
-.db-prog-value.good    { color:var(--success-600); }
-.db-prog-value.warn    { color:var(--warning-600); }
-.db-prog-value.primary { color:var(--primary-600); }
-
-/* ── Pending alert list ── */
-.db-alert { border:1px solid var(--danger-100); border-left:3px solid var(--danger-500); border-radius:var(--radius-lg); background:#fff; overflow:hidden; margin-bottom:1.25rem; }
-.db-alert-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; padding:0.85rem 1.25rem; border-bottom:1px solid var(--danger-100); background:var(--danger-50); }
-.db-alert-head-left strong { font-size:0.875rem; font-weight:700; color:var(--danger-700); display:block; }
-.db-alert-head-left span   { font-size:0.775rem; color:var(--neutral-500); }
-.db-alert-row { display:flex; align-items:center; justify-content:space-between; padding:0.7rem 1.25rem; border-bottom:1px solid var(--neutral-100); font-size:0.8125rem; }
-.db-alert-row:last-child { border-bottom:none; }
-.db-alert-row-left { display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; }
-.db-month-tag { font-size:0.72rem; font-weight:600; padding:0.2rem 0.5rem; border-radius:var(--radius-sm); background:var(--neutral-100); color:var(--neutral-700); border:1px solid var(--neutral-200); }
-.db-month-tag.is-current { background:var(--primary-50); color:var(--primary-700); border-color:var(--primary-200); }
-.db-late-tag { font-size:0.7rem; font-weight:600; color:var(--danger-700); display:inline-flex; align-items:center; gap:0.2rem; }
-.db-due-tag  { font-size:0.7rem; font-weight:600; color:var(--warning-700); display:inline-flex; align-items:center; gap:0.2rem; }
-
-@media(max-width:480px) {
-    .db-page { padding:1.1rem 0.85rem 2.5rem; }
-    .db-stat-value { font-size:1.2rem; }
-    .db-topbar { flex-direction:column; align-items:flex-start; }
-}
-
-/* ── Streak hero ── */
-.db-streak { display:flex; align-items:center; gap:1rem; padding:0.9rem 1.1rem; border-radius:var(--radius-lg); border:1px solid #fed7aa; background:linear-gradient(135deg,#fff7ed,#fef3c7); margin-bottom:1rem; }
-.db-streak-icon { font-size:1.8rem; line-height:1; flex-shrink:0; }
-.db-streak-body { flex:1; }
-.db-streak-label { font-size:0.68rem; font-weight:700; color:var(--warning-700); text-transform:uppercase; letter-spacing:0.05em; }
-.db-streak-value { font-size:1.5rem; font-weight:800; color:var(--warning-600); line-height:1.15; }
-.db-streak-desc  { font-size:0.72rem; color:var(--neutral-500); margin-top:0.1rem; }
-.db-streak.zero  { background:var(--neutral-50); border-color:var(--neutral-200); }
-.db-streak.zero .db-streak-icon { opacity:0.25; }
-
-/* ── Badges strip ── */
-.db-badges { display:flex; flex-wrap:wrap; gap:0.5rem; padding:0.9rem 1.1rem; }
-.db-badge { display:inline-flex; align-items:center; gap:0.4rem; padding:0.3rem 0.65rem 0.3rem 0.4rem; border-radius:9999px; border:1px solid; font-size:0.72rem; font-weight:600; white-space:nowrap; cursor:default; }
-.db-badge-icon { width:1.25rem; height:1.25rem; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.6rem; flex-shrink:0; }
-.db-badges-empty { padding:0.9rem 1.1rem; font-size:0.8rem; color:var(--neutral-400); }
-
-/* ── All-time highlights strip ── */
-.db-highlights { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--neutral-200); border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--neutral-200); margin-bottom:1rem; }
-@media(max-width:500px){ .db-highlights { grid-template-columns:repeat(2,1fr); } }
-.db-hl-cell { background:#fff; padding:0.65rem 0.9rem; }
-.db-hl-lbl { font-size:0.65rem; font-weight:600; color:var(--neutral-400); text-transform:uppercase; letter-spacing:0.04em; }
-.db-hl-val { font-size:1rem; font-weight:700; color:var(--neutral-900); line-height:1.3; }
+/* Dashboard: page-local layout only; everything else comes from the shared components. */
+.db-split { display: grid; gap: var(--spacing-6); grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 960px) { .db-split { grid-template-columns: minmax(0, 1fr) 20rem; } }
+.db-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px) { .db-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 599px) { .db-kpis .stat { padding: var(--spacing-4); } .db-kpis .stat-value { font-size: var(--text-lg); } }
+@media (max-width: 959px) { .db-split > aside { order: -1; } }
+.db-recent td:first-child { white-space: nowrap; }
+.db-task { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-4); }
+.db-task-title { font-size: var(--text-lg); font-weight: 500; color: var(--ink); margin: var(--spacing-2) 0 var(--spacing-1); }
+.db-task-text { color: var(--slate); font-size: var(--text-sm); }
+.db-task.is-overdue .db-task-title { color: var(--danger-700); }
+.db-rows { list-style: none; margin: 0; padding: 0; }
+.db-rows li { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); padding: var(--spacing-3) 0; border-top: 1px solid var(--hairline); font-size: var(--text-sm); }
+.db-rows li:first-child { border-top: 0; }
+.db-rows .db-row-label { display: flex; align-items: center; gap: var(--spacing-2); color: var(--ink); }
+.db-rows li > a, .db-rows li > span:last-child { flex-shrink: 0; white-space: nowrap; }
+.db-rows .db-row-label i { color: var(--neutral-600); width: 1rem; text-align: center; }
+.db-badges { display: flex; flex-wrap: wrap; gap: var(--spacing-2); }
+.db-badges .badge i { color: var(--neutral-600); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.db-streak-value { font-size: var(--text-xl); font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
 </style>
 
-<div class="db-page">
-
-    <!-- ── Top bar ── -->
-    <div class="db-topbar">
-        <div class="db-topbar-left">
-            <h1>Welcome back, <?php echo htmlspecialchars($user['name'] ?? $user['username']); ?></h1>
-            <p>
-                <?php echo htmlspecialchars($user['zone'] ?? 'No zone'); ?>
-                <?php if (!empty($user['region'])): ?>&nbsp;&middot;&nbsp;<?php echo htmlspecialchars($user['region']); ?><?php endif; ?>
-                &nbsp;&middot;&nbsp;<?php echo date('l, F j Y'); ?>
-            </p>
-        </div>
-        <div class="db-topbar-actions">
-            <?php if ($user['role'] !== 'admin-manager'): ?>
-            <a href="pages/reports/create.php" class="modern-button modern-button-primary" style="font-size:0.8125rem;"><i class="fas fa-plus modern-button-icon"></i> Submit Report</a>
-            <?php endif; ?>
-            <a href="pages/reports/list.php" class="modern-button modern-button-secondary" style="font-size:0.8125rem;"><i class="fas fa-list modern-button-icon"></i> All Reports</a>
-            <?php if ($user['role'] === 'admin'): ?>
-            <a href="admin/dashboard.php" class="modern-button modern-button-secondary" style="font-size:0.8125rem;"><i class="fas fa-chart-bar modern-button-icon"></i> Analytics</a>
+<!-- ── Page head ── -->
+<div class="page-head">
+    <div>
+        <div class="page-eyebrow">
+            <?php if ($isAdminRole): ?>Admin &middot; All regions
+            <?php elseif ($isManagerRole): ?>Admin Manager &middot; <?php echo $h($managerRegion ?: 'No region assigned'); ?>
+            <?php else: ?>RZM &middot; <?php echo $h($user['zone'] ?? 'No zone'); ?><?php if (!empty($user['region'])): ?> &middot; <?php echo $h($user['region']); ?><?php endif; ?>
             <?php endif; ?>
         </div>
+        <h1 class="page-title">
+            <?php if ($isManagerRole): ?><?php echo $h($managerRegion ?: 'Region'); ?> overview
+            <?php else: ?>Welcome back, <?php echo $h($user['name'] ?? $user['username']); ?>
+            <?php endif; ?>
+        </h1>
+        <p class="page-sub"><?php echo date('l, j F Y'); ?></p>
     </div>
-
-    <!-- ── Notification banners ── -->
-    <?php if (isset($user['active']) && !(int)$user['active']): ?>
-    <div class="db-banner db-banner-warning">
-        <i class="fas fa-hourglass-half db-banner-icon"></i>
-        <div class="db-banner-text"><strong>Account Pending Approval</strong> <span>&mdash; Your account is waiting for admin approval. Some features may be limited until then.</span></div>
-    </div>
-    <?php endif; ?>
-
-    <?php if ($overdueCount >= 3 && ($user['role'] === 'user' || !isset($user['role']))): ?>
-    <div class="db-banner db-banner-danger">
-        <i class="fas fa-exclamation-triangle db-banner-icon"></i>
-        <div class="db-banner-text"><strong><?php echo $overdueCount; ?> overdue report<?php echo $overdueCount !== 1 ? 's' : ''; ?></strong> <span>&mdash; Your regional manager has been notified. Please submit your missing reports immediately.</span></div>
-        <a href="pages/reports/create.php" class="db-banner-action">Submit Now</a>
-    </div>
-    <?php elseif ($overdueCount > 0 && ($user['role'] === 'user' || !isset($user['role']))): ?>
-    <div class="db-banner db-banner-danger">
-        <i class="fas fa-clock db-banner-icon"></i>
-        <div class="db-banner-text"><strong><?php echo $overdueCount; ?> overdue report<?php echo $overdueCount !== 1 ? 's' : ''; ?></strong> <span>&mdash; Please catch up on your missing submissions.</span></div>
-        <a href="pages/reports/create.php" class="db-banner-action">Submit Now</a>
+    <?php if (!$isRzmRole): ?>
+    <div class="page-actions">
+        <a href="pages/reports/list.php" class="btn btn-primary"><i class="fas fa-list" aria-hidden="true"></i> <?php echo $isManagerRole ? 'Region reports' : 'All reports'; ?></a>
     </div>
     <?php endif; ?>
+</div>
 
-    <?php if (!$currentMonthSubmitted && $overdueCount === 0 && ($user['role'] === 'user' || !isset($user['role']))): ?>
-    <div class="db-banner db-banner-info">
-        <i class="fas fa-calendar-check db-banner-icon"></i>
-        <div class="db-banner-text"><strong><?php echo date('F Y'); ?> report not yet submitted</strong> <span>&mdash; <?php echo $daysLeftInMonth > 0 ? $daysLeftInMonth . ' day' . ($daysLeftInMonth !== 1 ? 's' : '') . ' left this month.' : 'Last day of the month &mdash; submit today!'; ?></span></div>
-        <a href="pages/reports/create.php" class="db-banner-action">Submit</a>
-    </div>
-    <?php endif; ?>
+<?php if (isset($user['active']) && !(int)$user['active']): ?>
+<div class="alert alert-warning" role="status">
+    <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+    <div><div class="alert-title">Account pending approval</div>Your account is waiting for admin approval. Some features may be limited until then.</div>
+</div>
+<?php endif; ?>
 
-    <?php if ($currentMonthSubmitted && ($user['role'] === 'user' || !isset($user['role']))): ?>
-    <div class="db-banner db-banner-success">
-        <i class="fas fa-check-circle db-banner-icon"></i>
-        <div class="db-banner-text"><strong><?php echo date('F Y'); ?> report submitted</strong> <span>&mdash; You&rsquo;re all caught up for this month. Great work!</span></div>
-        <?php if ($lastReportId): ?><a href="pages/reports/view.php?id=<?php echo $lastReportId; ?>" class="db-banner-action">View Report</a><?php endif; ?>
-    </div>
-    <?php endif; ?>
-
-    <!-- ── What To Do Now (user only) ── -->
-    <?php if ($user['role'] === 'user' || !isset($user['role'])): ?>
-    <div class="db-control">
-        <div class="db-control-head">
-            <h2><i class="fas fa-bolt" style="margin-right:0.4rem;color:var(--primary-500);"></i>What To Do Now</h2>
-            <span style="font-size:0.75rem;color:var(--neutral-400);"><?php echo date('F Y'); ?></span>
-        </div>
-        <div class="db-control-body">
-            <?php
-            // Current month status row
-            if ($currentMonthSubmitted):
-            ?>
-            <div class="db-status-row done">
-                <div class="db-status-dot"></div>
-                <div class="db-status-main">
-                    <strong>This month&rsquo;s report is submitted</strong>
-                    <span>Nothing pending for <?php echo date('F Y'); ?>. Check back next month.</span>
+<?php if ($isRzmRole): ?>
+<!-- ── RZM: this month's task ── -->
+<section class="section" aria-labelledby="task-title">
+    <div class="panel">
+        <div class="panel-body">
+            <?php if ($currentMonthSubmitted): ?>
+            <div class="db-task">
+                <div>
+                    <span class="badge badge-success"><?php echo $h($monthLabel); ?> &middot; Submitted</span>
+                    <h2 class="db-task-title" id="task-title">Your <?php echo $h(date('F')); ?> report is in</h2>
+                    <p class="db-task-text">Nothing else is due this month. The next report is due by the end of <?php echo $h(date('F Y', strtotime('first day of next month'))); ?>.</p>
                 </div>
                 <?php if ($lastReportId): ?>
-                <a href="pages/reports/view.php?id=<?php echo $lastReportId; ?>" class="modern-table-action db-status-action">View &rarr;</a>
+                <a href="pages/reports/view.php?id=<?php echo (int)$lastReportId; ?>" class="btn btn-secondary">View report</a>
                 <?php endif; ?>
             </div>
             <?php else: ?>
-            <div class="db-status-row <?php echo $currentMonthDaysLate > 0 ? 'overdue' : 'due'; ?>">
-                <div class="db-status-dot"></div>
-                <div class="db-status-main">
-                    <strong>
-                        <?php if ($currentMonthDaysLate > 0): ?>
-                            <?php echo date('F Y'); ?> report is <?php echo $currentMonthDaysLate; ?> day<?php echo $currentMonthDaysLate !== 1 ? 's' : ''; ?> overdue
-                        <?php else: ?>
-                            Submit your <?php echo date('F Y'); ?> report
-                        <?php endif; ?>
-                    </strong>
-                    <span>
-                        <?php if ($daysLeftInMonth > 0): ?>
-                            <?php echo $daysLeftInMonth; ?> day<?php echo $daysLeftInMonth !== 1 ? 's' : ''; ?> remaining this month &mdash; don&rsquo;t wait until the last day.
-                        <?php else: ?>
-                            Today is the last day of the month &mdash; submit now.
-                        <?php endif; ?>
-                    </span>
+            <div class="db-task <?php echo $currentMonthDaysLate > 0 ? 'is-overdue' : ''; ?>">
+                <div>
+                    <?php if ($currentMonthDaysLate > 0): ?>
+                    <span class="badge badge-danger"><?php echo $h($monthLabel); ?> &middot; <?php echo $plural($currentMonthDaysLate, 'day'); ?> overdue</span>
+                    <?php else: ?>
+                    <span class="badge badge-warning"><?php echo $h($monthLabel); ?> &middot; Not submitted</span>
+                    <?php endif; ?>
+                    <h2 class="db-task-title" id="task-title">Submit your <?php echo $h(date('F')); ?> report</h2>
+                    <p class="db-task-text">
+                        <?php echo $daysLeftInMonth > 0
+                            ? $plural($daysLeftInMonth, 'day') . ' left this month.'
+                            : 'Today is the last day of the month.'; ?>
+                    </p>
                 </div>
-                <a href="pages/reports/create.php" class="modern-button modern-button-primary db-status-action" style="font-size:0.78rem;padding:0.3rem 0.75rem;">Submit Now</a>
-            </div>
-            <?php endif; ?>
-
-            <?php
-            // Overdue past months
-            $pastOverdue = array_filter($missingMonths, fn($m) => !$m['is_current'] && $m['days_late'] > 0);
-            if (!empty($pastOverdue)):
-            ?>
-            <div class="db-status-row overdue">
-                <div class="db-status-dot"></div>
-                <div class="db-status-main">
-                    <strong><?php echo count($pastOverdue); ?> past month<?php echo count($pastOverdue) !== 1 ? 's' : ''; ?> still missing</strong>
-                    <span>Overdue reports affect your consistency record. Submit them below.</span>
-                </div>
-                <a href="#missing-months" class="modern-table-action db-status-action" style="font-size:0.78rem;">View &darr;</a>
-            </div>
-            <?php endif; ?>
-
-            <?php if ($consistencyStreak > 0): ?>
-            <div class="db-status-row done">
-                <div class="db-status-dot"></div>
-                <div class="db-status-main">
-                    <strong><?php echo $consistencyStreak; ?>-month consistency streak</strong>
-                    <span>Keep it going &mdash; don&rsquo;t break the chain!</span>
-                </div>
+                <a href="pages/reports/create.php" class="btn btn-primary btn-lg"><i class="fas fa-plus" aria-hidden="true"></i> Submit report</a>
             </div>
             <?php endif; ?>
         </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- ── Quick Links ── -->
-    <div class="db-quicklinks">
-        <?php if ($user['role'] !== 'admin-manager'): ?>
-        <a href="pages/reports/create.php" class="db-ql">
-            <span class="db-ql-icon"><i class="fas fa-plus-circle"></i></span>
-            <span class="db-ql-label">Submit Report</span>
-            <span class="db-ql-sub">For <?php echo date('F Y'); ?></span>
-        </a>
-        <?php if ($lastReportId): ?>
-        <a href="pages/reports/view.php?id=<?php echo $lastReportId; ?>" class="db-ql">
-            <span class="db-ql-icon"><i class="fas fa-file-alt"></i></span>
-            <span class="db-ql-label">Last Report</span>
-            <span class="db-ql-sub">View your most recent</span>
-        </a>
-        <?php endif; ?>
-        <?php endif; ?>
-        <a href="pages/reports/list.php" class="db-ql">
-            <span class="db-ql-icon"><i class="fas fa-history"></i></span>
-            <span class="db-ql-label">Report History</span>
-            <span class="db-ql-sub"><?php echo $reportsCount; ?> submitted this year</span>
-        </a>
-        <a href="pages/analytics.php" class="db-ql">
-            <span class="db-ql-icon"><i class="fas fa-chart-area" style="color:#6366f1;"></i></span>
-            <span class="db-ql-label">Analytics</span>
-            <span class="db-ql-sub"><?php echo $user['role'] === 'admin' || $user['role'] === 'admin-manager' ? 'Trends &amp; leaderboard' : 'My trends &amp; badges'; ?></span>
-        </a>
-        <a href="profile.php" class="db-ql">
-            <span class="db-ql-icon"><i class="fas fa-user-circle"></i></span>
-            <span class="db-ql-label">My Profile</span>
-            <span class="db-ql-sub">Account &amp; settings</span>
-        </a>
-        <?php if ($user['role'] === 'admin' || $user['role'] === 'admin-manager'): ?>
-        <a href="admin/users.php" class="db-ql">
-            <span class="db-ql-icon"><i class="fas fa-users"></i></span>
-            <span class="db-ql-label">Manage Users</span>
-            <span class="db-ql-sub">Approve &amp; edit accounts</span>
-        </a>
-        <a href="admin/zone_compliance.php" class="db-ql">
-            <span class="db-ql-icon"><i class="fas fa-map-marked-alt"></i></span>
-            <span class="db-ql-label">Zone Compliance</span>
-            <span class="db-ql-sub">Check who has reported</span>
-        </a>
-        <a href="admin/dashboard.php" class="db-ql">
-            <span class="db-ql-icon"><i class="fas fa-chart-bar"></i></span>
-            <span class="db-ql-label">Admin Statistics</span>
-            <span class="db-ql-sub">Full org-wide stats</span>
-        </a>
+        <?php if (!empty($pastOverdue)): ?>
+        <div class="panel-foot" id="missing-months">
+            <div class="meta" style="margin-bottom:var(--spacing-2);"><?php echo $plural(count($pastOverdue), 'earlier month'); ?> still missing</div>
+            <ul class="db-rows">
+                <?php foreach ($pastOverdue as $mm): ?>
+                <li>
+                    <span class="db-row-label"><?php echo $h($mm['label']); ?> <span class="badge badge-danger no-dot"><?php echo (int)$mm['days_late']; ?>d late</span></span>
+                    <a href="pages/reports/create.php?month=<?php echo urlencode($mm['ym']); ?>" class="link">Submit</a>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
         <?php endif; ?>
     </div>
+</section>
 
-    <!-- ── Main body grid ── -->
-    <div class="db-grid">
+<?php if ($overdueCount >= 3): ?>
+<div class="alert alert-danger" role="alert">
+    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+    <div><div class="alert-title"><?php echo $plural($overdueCount, 'report'); ?> overdue</div>Submit the missing months above to bring your record up to date. If something is stopping you, contact your regional manager.</div>
+</div>
+<?php endif; ?>
+<?php endif; ?>
 
-        <!-- Left column -->
-        <div>
-            <!-- Stat tiles -->
-            <div class="db-stats">
-                <div class="db-stat">
-                    <span class="db-stat-label">Reports <?php echo date('Y'); ?></span>
-                    <span class="db-stat-value"><?php echo $reportsCount; ?></span>
-                    <a href="pages/reports/list.php" class="db-stat-link">View all &rarr;</a>
-                </div>
-                <div class="db-stat">
-                    <span class="db-stat-label">Copies Sponsored</span>
-                    <span class="db-stat-value"><?php echo number_format($totalCopies); ?></span>
-                </div>
-                <div class="db-stat">
-                    <span class="db-stat-label">This Month</span>
-                    <span class="db-stat-value"><?php echo number_format($monthlyTotal); ?></span>
-                </div>
-                <div class="db-stat">
-                    <span class="db-stat-label">Distributions</span>
-                    <span class="db-stat-value"><?php echo number_format($totalDistributions); ?></span>
-                </div>
-                <div class="db-stat">
-                    <span class="db-stat-label">Souls Won</span>
-                    <span class="db-stat-value"><?php echo number_format($totalSoulsWon); ?></span>
-                </div>
-                <div class="db-stat">
-                    <span class="db-stat-label">New Partners</span>
-                    <span class="db-stat-value"><?php echo number_format($totalNewPartners); ?></span>
-                </div>
-                <div class="db-stat">
-                    <span class="db-stat-label">Rhapsody Cells</span>
-                    <span class="db-stat-value"><?php echo number_format($totalRhapsodyCells); ?></span>
-                </div>
-                <div class="db-stat">
-                    <span class="db-stat-label">New Churches</span>
-                    <span class="db-stat-value"><?php echo number_format($totalNewChurches); ?></span>
-                </div>
-                <?php if ($user['role'] === 'admin'): ?>
-                <div class="db-stat">
-                    <span class="db-stat-label">Total Users</span>
-                    <span class="db-stat-value"><?php
-                        try { $stmt = $conn->query("SELECT COUNT(*) as count FROM users"); echo $stmt->fetch()['count']; }
-                        catch (PDOException $e) { echo '0'; }
-                    ?></span>
-                    <a href="admin/users.php" class="db-stat-link">Manage &rarr;</a>
-                </div>
+<!-- ── KPIs ── -->
+<section class="section" aria-labelledby="kpi-title">
+    <div class="section-head">
+        <h2 class="section-title" id="kpi-title"><?php echo $isRzmRole ? 'Your year so far' : ($isManagerRole ? 'Region totals' : 'All regions'); ?></h2>
+        <span class="section-meta meta"><?php echo $h($currentYear); ?></span>
+    </div>
+    <div class="stat-grid db-kpis">
+        <div class="stat">
+            <span class="stat-label">Reports <?php echo $h($currentYear); ?></span>
+            <span class="stat-value"><?php echo number_format($reportsCount); ?></span>
+            <?php if ($isRzmRole && $totalMonthsExpected): ?><span class="stat-note"><?php echo (int)$reportsCount; ?> of <?php echo $plural((int)$totalMonthsExpected, 'month'); ?> this year</span><?php endif; ?>
+        </div>
+        <div class="stat"><span class="stat-label">Copies sponsored</span><span class="stat-value"><?php echo number_format($totalCopies); ?></span></div>
+        <div class="stat"><span class="stat-label">Copies this month</span><span class="stat-value"><?php echo number_format($monthlyTotal); ?></span></div>
+        <div class="stat"><span class="stat-label">Distributions</span><span class="stat-value"><?php echo number_format($totalDistributions); ?></span></div>
+        <div class="stat"><span class="stat-label">Souls won</span><span class="stat-value"><?php echo number_format($totalSoulsWon); ?></span></div>
+        <div class="stat"><span class="stat-label">New partners</span><span class="stat-value"><?php echo number_format($totalNewPartners); ?></span></div>
+        <div class="stat"><span class="stat-label">Rhapsody cells</span><span class="stat-value"><?php echo number_format($totalRhapsodyCells); ?></span></div>
+        <div class="stat"><span class="stat-label">New churches</span><span class="stat-value"><?php echo number_format($totalNewChurches); ?></span></div>
+    </div>
+</section>
+
+<?php
+// Recent reports table (shared by every role)
+$showSubmitter = !$isRzmRole;
+ob_start(); ?>
+<div class="section-head">
+    <h2 class="section-title" id="recent-title">Recent reports</h2>
+    <a href="pages/reports/list.php" class="link section-meta">View all</a>
+</div>
+<?php if (empty($recentReports)): ?>
+<div class="panel">
+    <div class="empty-state">
+        <div class="empty-state-icon"><i class="fas fa-file-alt" aria-hidden="true"></i></div>
+        <div class="empty-state-title">No reports yet this year</div>
+        <?php if ($isRzmRole): ?>
+        <p class="empty-state-text">Reports you submit will appear here.</p>
+        <?php else: ?>
+        <p class="empty-state-text">Reports from <?php echo $isManagerRole ? 'your region' : 'RZMs'; ?> will appear here once submitted.</p>
+        <?php endif; ?>
+    </div>
+</div>
+<?php else: ?>
+<div class="table-wrap">
+    <table class="data-table db-recent">
+        <thead>
+            <tr>
+                <th scope="col">Month</th>
+                <?php if ($showSubmitter): ?><th scope="col">Submitted by</th><?php endif; ?>
+                <th scope="col" class="num">Copies</th>
+                <th scope="col" class="num"><span class="sr-only">Action</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($recentReports as $report): ?>
+            <tr>
+                <td><?php echo $h(date('M Y', strtotime($report['report_month'] ?? $report['created_at']))); ?></td>
+                <?php if ($showSubmitter): ?>
+                <td><?php echo $h($report['name']); ?><?php if (!empty($report['zone'])): ?><div class="muted" style="font-size:var(--text-xs);"><?php echo $h($report['zone']); ?></div><?php endif; ?></td>
+                <?php endif; ?>
+                <td class="num"><?php echo number_format((int)$report['total_copies']); ?></td>
+                <td class="num"><a href="pages/reports/view.php?id=<?php echo (int)$report['id']; ?>" class="link">View</a></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif;
+$recentHtml = ob_get_clean(); ?>
+
+<?php if (!$isRzmRole): ?>
+<!-- ── Admin / admin manager: recent + needs attention ── -->
+<div class="db-split section">
+    <section aria-labelledby="recent-title"><?php echo $recentHtml; ?></section>
+    <aside aria-labelledby="attention-title">
+        <div class="section-head"><h2 class="section-title" id="attention-title">Needs attention</h2></div>
+        <div class="panel">
+            <div class="panel-body">
+                <ul class="db-rows">
+                    <?php if ($isAdminRole): ?>
+                    <li>
+                        <span class="db-row-label"><i class="fas fa-user-clock" aria-hidden="true"></i> Pending approvals</span>
+                        <?php if ($pendingApprovals > 0): ?>
+                        <a href="admin/users.php?status=0" class="link num"><?php echo number_format($pendingApprovals); ?> &rarr;</a>
+                        <?php else: ?><span class="muted num">0</span><?php endif; ?>
+                    </li>
+                    <?php endif; ?>
+                    <li>
+                        <span class="db-row-label"><i class="fas fa-calendar-times" aria-hidden="true"></i> RZMs yet to report for <?php echo $h(date('F')); ?></span>
+                        <?php if ($rzmMissingMonth > 0): ?>
+                        <a href="<?php echo $isAdminRole ? 'admin/zone_compliance.php' : 'pages/reports/list.php'; ?>" class="link num"><?php echo number_format($rzmMissingMonth); ?> &rarr;</a>
+                        <?php else: ?><span class="muted num">0</span><?php endif; ?>
+                    </li>
+                    <?php if ($isAdminRole): ?>
+                    <li>
+                        <span class="db-row-label"><i class="fas fa-users" aria-hidden="true"></i> Total users</span>
+                        <a href="admin/users.php" class="link num"><?php echo number_format($totalUsers); ?></a>
+                    </li>
+                    <?php else: ?>
+                    <li>
+                        <span class="db-row-label"><i class="fas fa-user-check" aria-hidden="true"></i> Active RZMs in region</span>
+                        <span class="num"><?php echo number_format($rzmTotal); ?></span>
+                    </li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+        </div>
+    </aside>
+</div>
+<?php else: ?>
+<section class="section" aria-labelledby="recent-title"><?php echo $recentHtml; ?></section>
+<?php endif; ?>
+
+<?php if ($isRzmRole): ?>
+<!-- ── RZM: progress (secondary) ── -->
+<section class="section" aria-labelledby="progress-title">
+    <div class="section-head">
+        <h2 class="section-title" id="progress-title">Progress</h2>
+        <a href="pages/analytics.php" class="link section-meta">Trends &amp; badges</a>
+    </div>
+    <div class="grid-2">
+        <div class="panel">
+            <div class="panel-body">
+                <div class="meta">Submission streak</div>
+                <div class="db-streak-value" style="margin:var(--spacing-3) 0 var(--spacing-2);"><?php echo $plural($consistencyStreak, 'month'); ?></div>
+                <p class="muted" style="font-size:var(--text-sm);">
+                    <?php if ($consistencyStreak === 0): ?>Submit every month to build a streak.
+                    <?php elseif ($consistencyStreak < 3): ?><?php echo $plural(3 - $consistencyStreak, 'more month'); ?> to the On Fire badge.
+                    <?php elseif ($consistencyStreak < 6): ?><?php echo $plural(6 - $consistencyStreak, 'more month'); ?> to Unstoppable.
+                    <?php elseif ($consistencyStreak < 12): ?><?php echo $plural(12 - $consistencyStreak, 'more month'); ?> to Legendary.
+                    <?php else: ?>Legendary streak. Keep it going.
+                    <?php endif; ?>
+                </p>
+                <?php if ($bestMonthLabel || $allTimeTotal > 0): ?>
+                <dl class="kv" style="margin-top:var(--spacing-4);">
+                    <?php if ($bestMonthLabel): ?><dt>Best month</dt><dd><?php echo $h($bestMonthLabel); ?> &middot; <?php echo number_format($bestMonthValue); ?></dd><?php endif; ?>
+                    <dt>All-time reports</dt><dd><?php echo number_format($allTimeTotal); ?></dd>
+                    <dt>All-time copies</dt><dd><?php echo number_format($allTimeCopies); ?></dd>
+                </dl>
                 <?php endif; ?>
             </div>
-
-            <!-- Missing months / pending alert -->
-            <?php if (!empty($missingMonths)): ?>
-            <div class="db-alert" id="missing-months">
-                <div class="db-alert-head">
-                    <div class="db-alert-head-left">
-                        <strong><i class="fas fa-calendar-times" style="margin-right:0.35rem;font-size:0.8rem;"></i>Pending Reports</strong>
-                        <span><?php echo count($missingMonths); ?> month<?php echo count($missingMonths) > 1 ? 's' : ''; ?> without a submission</span>
-                    </div>
-                    <a href="pages/reports/create.php" class="modern-button modern-button-primary" style="font-size:0.78rem;"><i class="fas fa-plus modern-button-icon"></i>Submit Now</a>
-                </div>
-                <?php foreach ($missingMonths as $mm): ?>
-                <div class="db-alert-row">
-                    <div class="db-alert-row-left">
-                        <span class="db-month-tag <?php echo $mm['is_current'] ? 'is-current' : ''; ?>">
-                            <?php echo htmlspecialchars($mm['label']); ?><?php if ($mm['is_current']): ?> &middot; Current<?php endif; ?>
-                        </span>
-                        <?php if ($mm['days_late'] > 0): ?>
-                            <span class="db-late-tag"><i class="fas fa-clock"></i><?php echo $mm['days_late']; ?>d late</span>
-                        <?php elseif ($mm['is_current']): ?>
-                            <span class="db-due-tag"><i class="fas fa-clock"></i><?php echo $daysLeftInMonth; ?>d left</span>
-                        <?php endif; ?>
-                    </div>
-                    <a href="pages/reports/create.php?month=<?php echo urlencode($mm['ym']); ?>" class="modern-table-action" style="font-size:0.78rem;">Submit &rarr;</a>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-
-            <!-- Recent Reports -->
-            <div class="db-section">
-                <div class="db-section-head">
-                    <h2>Recent Reports</h2>
-                    <?php if ($user['role'] !== 'admin' && $user['role'] !== 'admin-manager'): ?>
-                    <a href="pages/reports/create.php" class="modern-button modern-button-primary" style="font-size:0.78rem;"><i class="fas fa-plus modern-button-icon"></i>Submit</a>
-                    <?php endif; ?>
-                </div>
-                <div class="modern-table-container">
-                    <table class="modern-table">
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th>Copies</th>
-                                <?php if ($user['role'] === 'admin'): ?><th>Submitted By</th><?php endif; ?>
-                                <th style="text-align:right;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($recentReports)): ?>
-                            <tr>
-                                <td colspan="<?php echo $user['role'] === 'admin' ? '4' : '3'; ?>" style="text-align:center;padding:2rem;color:var(--neutral-400);font-size:0.8125rem;">
-                                    No reports yet.
-                                    <?php if ($user['role'] !== 'admin' && $user['role'] !== 'admin-manager'): ?>
-                                    <a href="pages/reports/create.php" class="modern-table-action" style="margin-left:0.25rem;">Submit your first &rarr;</a>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                            <?php else: ?>
-                            <?php foreach ($recentReports as $report): ?>
-                            <tr>
-                                <td><?php echo date('M Y', strtotime($report['report_month'] ?? $report['created_at'])); ?></td>
-                                <td><?php echo number_format($report['total_copies']); ?></td>
-                                <?php if ($user['role'] === 'admin'): ?>
-                                <td>
-                                    <span style="font-weight:500;"><?php echo htmlspecialchars($report['name']); ?></span>
-                                    <span style="display:block;font-size:0.72rem;color:var(--neutral-400);"><?php echo htmlspecialchars($report['zone'] ?? ''); ?></span>
-                                </td>
-                                <?php endif; ?>
-                                <td style="text-align:right;">
-                                    <a href="pages/reports/view.php?id=<?php echo $report['id']; ?>" class="modern-table-action">View</a>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
-
-        <!-- Right column: Personal Progress -->
-        <?php if ($user['role'] === 'user' || !isset($user['role'])): ?>
-        <div>
-
-            <!-- ── Streak hero ── -->
-            <div class="db-streak <?php echo $consistencyStreak === 0 ? 'zero' : ''; ?>" style="margin-bottom:0.85rem;">
-                <div class="db-streak-icon"><?php echo $consistencyStreak >= 12 ? '👑' : ($consistencyStreak >= 6 ? '🔥' : ($consistencyStreak >= 3 ? '⚡' : '📅')); ?></div>
-                <div class="db-streak-body">
-                    <div class="db-streak-label">Submission Streak</div>
-                    <div class="db-streak-value"><?php echo $consistencyStreak; ?> month<?php echo $consistencyStreak !== 1 ? 's' : ''; ?></div>
-                    <div class="db-streak-desc">
-                        <?php if ($consistencyStreak === 0): ?>Start submitting monthly to build a streak.
-                        <?php elseif ($consistencyStreak < 3): ?>Keep going — <?php echo 3 - $consistencyStreak; ?> more month<?php echo (3-$consistencyStreak)!==1?'s':''; ?> to earn On Fire badge.
-                        <?php elseif ($consistencyStreak < 6): ?>Great work! <?php echo 6 - $consistencyStreak; ?> more to Unstoppable.
-                        <?php elseif ($consistencyStreak < 12): ?><?php echo 12 - $consistencyStreak; ?> more months to Legendary status!
-                        <?php else: ?>Legendary <?php echo $consistencyStreak; ?>-month streak. Keep going!
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── All-time highlights ── -->
-            <?php if ($allTimeTotal > 0): ?>
-            <div class="db-highlights" style="margin-bottom:0.85rem;">
-                <div class="db-hl-cell">
-                    <div class="db-hl-lbl">All-time Reports</div>
-                    <div class="db-hl-val"><?php echo number_format($allTimeTotal); ?></div>
-                </div>
-                <div class="db-hl-cell">
-                    <div class="db-hl-lbl">Copies All-time</div>
-                    <div class="db-hl-val"><?php echo $allTimeCopies >= 1000 ? round($allTimeCopies/1000,1).'k' : number_format($allTimeCopies); ?></div>
-                </div>
-                <div class="db-hl-cell">
-                    <div class="db-hl-lbl">Souls Won</div>
-                    <div class="db-hl-val" style="color:#ec4899;"><?php echo number_format($allTimeSouls); ?></div>
-                </div>
-                <div class="db-hl-cell">
-                    <div class="db-hl-lbl">New Partners</div>
-                    <div class="db-hl-val" style="color:#0d9488;"><?php echo number_format($allTimePartners); ?></div>
-                </div>
-            </div>
-            <?php endif; ?>
-
-            <!-- ── Badges ── -->
-            <?php if (!empty($dbBadges)): ?>
-            <div class="db-section" style="margin-bottom:0.85rem;">
-                <div class="db-section-head">
-                    <h2>My Badges</h2>
-                    <a href="pages/analytics.php" style="font-size:0.72rem;color:var(--primary-600);text-decoration:none;">View all &rarr;</a>
-                </div>
+        <div class="panel">
+            <div class="panel-body">
+                <div class="meta" style="margin-bottom:var(--spacing-3);">Badges</div>
+                <?php if (!empty($dbBadges)): ?>
                 <div class="db-badges">
                     <?php foreach ($dbBadges as $badge): ?>
-                    <span class="db-badge" style="border-color:<?php echo $badge['color']; ?>30;color:<?php echo $badge['color']; ?>;background:<?php echo $badge['color']; ?>0d;" title="<?php echo htmlspecialchars($badge['tip']); ?>">
-                        <span class="db-badge-icon" style="background:<?php echo $badge['color']; ?>20;color:<?php echo $badge['color']; ?>;"><i class="fas <?php echo $badge['icon']; ?>"></i></span>
-                        <?php echo htmlspecialchars($badge['label']); ?>
-                    </span>
+                    <span class="badge no-dot" title="<?php echo $h($badge['tip']); ?>"><i class="fas <?php echo $h($badge['icon']); ?>" aria-hidden="true"></i> <?php echo $h($badge['label']); ?></span>
                     <?php endforeach; ?>
                 </div>
-            </div>
-            <?php endif; ?>
-
-            <!-- ── Progress rows ── -->
-            <div class="db-section" style="margin-bottom:0.85rem;">
-                <div class="db-section-head"><h2>This Year</h2></div>
-
-                <div class="db-prog-item">
-                    <span class="db-prog-label">Reports submitted</span>
-                    <span class="db-prog-value primary"><?php echo $reportsCount; ?> / <?php echo $totalMonthsExpected ?: '—'; ?></span>
-                </div>
-                <div class="db-prog-item">
-                    <span class="db-prog-label">Overdue months</span>
-                    <span class="db-prog-value <?php echo $overdueCount > 0 ? 'warn' : 'good'; ?>">
-                        <?php echo $overdueCount > 0 ? $overdueCount . ' overdue' : 'None ✓'; ?>
-                    </span>
-                </div>
-                <div class="db-prog-item">
-                    <span class="db-prog-label">Days left this month</span>
-                    <span class="db-prog-value <?php echo $daysLeftInMonth <= 5 ? 'warn' : 'primary'; ?>">
-                        <?php echo $daysLeftInMonth; ?> day<?php echo $daysLeftInMonth !== 1 ? 's' : ''; ?>
-                    </span>
-                </div>
-                <?php if ($bestMonthLabel): ?>
-                <div class="db-prog-item">
-                    <span class="db-prog-label">Best month</span>
-                    <span class="db-prog-value good" style="text-align:right;max-width:55%;">
-                        <?php echo htmlspecialchars($bestMonthLabel); ?>
-                        <span style="display:block;font-size:0.7rem;font-weight:400;color:var(--neutral-400);"><?php echo number_format($bestMonthValue); ?> copies</span>
-                    </span>
-                </div>
+                <?php else: ?>
+                <p class="muted" style="font-size:var(--text-sm);">Your first badge arrives with your first report.</p>
                 <?php endif; ?>
-                <div class="db-prog-item">
-                    <span class="db-prog-label">This month</span>
-                    <span class="db-prog-value <?php echo $currentMonthSubmitted ? 'good' : ($currentMonthDaysLate > 0 ? 'warn' : 'primary'); ?>">
-                        <?php echo $currentMonthSubmitted ? 'Submitted ✓' : ($currentMonthDaysLate > 0 ? $currentMonthDaysLate . 'd late' : 'Pending'); ?>
-                    </span>
-                </div>
-                <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--neutral-100);">
-                    <a href="pages/analytics.php" class="modern-button modern-button-secondary" style="font-size:0.78rem;width:100%;justify-content:center;"><i class="fas fa-chart-area modern-button-icon"></i>View Full Analytics</a>
-                </div>
-            </div>
-
-            <!-- ── Accountability ── -->
-            <div class="db-section">
-                <div class="db-section-head"><h2>Accountability</h2></div>
-                <div style="padding:1rem 1.25rem;font-size:0.8rem;color:var(--neutral-600);line-height:1.6;">
-                    <?php if ($overdueCount >= 3): ?>
-                    <p style="margin:0 0 0.5rem;color:var(--danger-700);font-weight:600;"><i class="fas fa-exclamation-triangle" style="margin-right:0.35rem;"></i>Escalation Notice</p>
-                    <p style="margin:0 0 0.75rem;">You have <?php echo $overdueCount; ?> overdue reports. Your regional manager has been notified. Please submit your missing reports immediately.</p>
-                    <?php elseif ($overdueCount > 0): ?>
-                    <p style="margin:0 0 0.5rem;color:var(--warning-700);font-weight:600;"><i class="fas fa-bell" style="margin-right:0.35rem;"></i>Reminder</p>
-                    <p style="margin:0 0 0.75rem;">You have <?php echo $overdueCount; ?> overdue report<?php echo $overdueCount !== 1 ? 's' : ''; ?>. Submit them to stay compliant and protect your streak.</p>
-                    <?php elseif (!$currentMonthSubmitted): ?>
-                    <p style="margin:0 0 0.5rem;color:var(--primary-700);font-weight:600;"><i class="fas fa-calendar-check" style="margin-right:0.35rem;"></i>Monthly Reminder</p>
-                    <p style="margin:0 0 0.75rem;">Your <?php echo date('F'); ?> report is due. You have <?php echo $daysLeftInMonth; ?> day<?php echo $daysLeftInMonth !== 1 ? 's' : ''; ?> left &mdash; submit before the end of the month to keep your streak alive.</p>
-                    <?php else: ?>
-                    <p style="margin:0 0 0.5rem;color:var(--success-700);font-weight:600;"><i class="fas fa-check-circle" style="margin-right:0.35rem;"></i>You Are Up to Date</p>
-                    <p style="margin:0 0 0.75rem;">No pending reports. Keep the momentum &mdash; your next report is due <?php echo date('F Y', strtotime('first day of next month')); ?>.</p>
-                    <?php endif; ?>
-                    <?php if ($consistencyStreak >= 3): ?>
-                    <p style="margin:0;background:var(--success-50);border:1px solid var(--success-200);color:var(--success-800);padding:0.5rem 0.75rem;border-radius:var(--radius-sm);font-size:0.775rem;">
-                        <i class="fas fa-fire" style="color:var(--warning-500);margin-right:0.3rem;"></i>
-                        <?php if ($consistencyStreak >= 6): ?>You&rsquo;ve submitted <?php echo $consistencyStreak; ?> months in a row &mdash; incredible consistency!
-                        <?php else: ?><?php echo $consistencyStreak; ?>-month streak! Don&rsquo;t break the chain.
-                        <?php endif; ?>
-                    </p>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-        </div>
-        <?php else: ?>
-        <!-- Admin right column -->
-        <div>
-            <div class="db-section">
-                <div class="db-section-head"><h2>At a Glance</h2></div>
-                <div class="db-prog-item">
-                    <span class="db-prog-label">Reports <?php echo date('Y'); ?></span>
-                    <span class="db-prog-value primary"><?php echo $reportsCount; ?></span>
-                </div>
-                <div class="db-prog-item">
-                    <span class="db-prog-label">Souls Won</span>
-                    <span class="db-prog-value good"><?php echo number_format($totalSoulsWon); ?></span>
-                </div>
-                <div class="db-prog-item">
-                    <span class="db-prog-label">New Partners</span>
-                    <span class="db-prog-value primary"><?php echo number_format($totalNewPartners); ?></span>
-                </div>
-                <div class="db-prog-item">
-                    <span class="db-prog-label">Total Users</span>
-                    <span class="db-prog-value"><?php
-                        try { $stmt = $conn->query("SELECT COUNT(*) as count FROM users"); echo (int)$stmt->fetch()['count']; }
-                        catch (PDOException $e) { echo '0'; }
-                    ?></span>
-                </div>
-                <div style="padding:0.85rem 1.25rem;border-top:1px solid var(--neutral-100);display:flex;flex-direction:column;gap:0.4rem;">
-                    <a href="pages/analytics.php" class="modern-button modern-button-primary" style="font-size:0.8rem;width:100%;justify-content:center;"><i class="fas fa-chart-area modern-button-icon"></i>Analytics &amp; Trends</a>
-                    <a href="admin/dashboard.php" class="modern-button modern-button-secondary" style="font-size:0.8rem;width:100%;justify-content:center;"><i class="fas fa-chart-bar modern-button-icon"></i>Admin Statistics</a>
-                </div>
             </div>
         </div>
-        <?php endif; ?>
-
-    </div><!-- /db-grid -->
-
-</div>
+    </div>
+</section>
+<?php endif; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -936,15 +681,15 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php if (isset($_SESSION['first_login']) && $_SESSION['first_login']): ?>
     Swal.fire({
         title: 'Welcome to the Reporting Portal!',
-        html: '<p style="font-size:0.9rem;color:#4b5563;">You can now submit and track your monthly reports. Start by submitting your first report.</p>',
+        html: '<p class="muted">You can now submit and track your monthly reports. Start by submitting your first report.</p>',
         icon: 'success',
-        confirmButtonColor: 'var(--primary-600)',
+        confirmButtonColor: 'var(--ink)',
         confirmButtonText: 'Get Started'
     });
     <?php unset($_SESSION['first_login']); ?>
     <?php endif; ?>
 
-    <?php if ($user['role'] === 'user' || !isset($user['role'])): ?>
+    <?php if ($user['role'] === ROLE_RZM || !isset($user['role'])): ?>
     // ── Smart reminder popup ──
     (function() {
         var overdueCount  = <?php echo (int)$overdueCount; ?>;
@@ -969,17 +714,17 @@ document.addEventListener('DOMContentLoaded', function() {
             if (overdueCount >= 3) {
                 // Escalation level
                 icon        = 'error';
-                title       = '⚠️ Escalation Notice';
+                title       = 'Escalation notice';
                 confirmText = 'Submit Reports Now';
-                confirmColor = '#dc2626';
+                confirmColor = 'var(--danger-600)';
                 bodyHtml = [
-                    '<p style="font-size:0.875rem;margin-bottom:0.75rem;">',
+                    '<p style="margin-bottom:var(--spacing-3);">',
                     'You have <strong>' + overdueCount + ' overdue reports</strong>. ',
-                    'Your regional manager has been notified.',
+                    'Submit the missing months to bring your record up to date.',
                     '</p>',
-                    '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:0.75rem 1rem;font-size:0.8rem;color:#991b1b;">',
+                    '<div class="alert alert-danger" style="text-align:left;">',
                     '<i class="fas fa-exclamation-triangle" style="margin-right:0.4rem;"></i>',
-                    'Continued non-compliance may result in escalation to your zone leader.',
+                    '<div>If something is stopping you from reporting, contact your regional manager.</div>',
                     '</div>'
                 ].join('');
 
@@ -988,13 +733,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 icon        = 'warning';
                 title       = 'Reports Overdue';
                 confirmText = 'Submit Now';
-                confirmColor = '#d97706';
+                confirmColor = 'var(--ink)';
                 bodyHtml = [
-                    '<p style="font-size:0.875rem;margin-bottom:0.75rem;">',
+                    '<p style="margin-bottom:var(--spacing-3);">',
                     'You have <strong>' + overdueCount + ' overdue report' + (overdueCount !== 1 ? 's' : '') + '</strong> ',
                     'including <strong>' + currentMonth + '</strong>.',
                     '</p>',
-                    '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:0.6rem 1rem;font-size:0.8rem;color:#92400e;">',
+                    '<div class="alert alert-warning" style="text-align:left;">',
                     '<i class="fas fa-clock" style="margin-right:0.35rem;"></i>',
                     daysLate > 0 ? (currentMonth + ' is ' + daysLate + ' day' + (daysLate !== 1 ? 's' : '') + ' overdue.') : (daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left to submit ' + currentMonth + '.'),
                     '</div>'
@@ -1005,13 +750,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 icon        = 'warning';
                 title       = 'Past Reports Missing';
                 confirmText = 'Catch Up Now';
-                confirmColor = '#d97706';
+                confirmColor = 'var(--ink)';
                 bodyHtml = [
-                    '<p style="font-size:0.875rem;margin-bottom:0.75rem;">',
+                    '<p style="margin-bottom:var(--spacing-3);">',
                     'Great — your ' + currentMonth + ' report is in! But you still have ',
                     '<strong>' + overdueCount + ' overdue month' + (overdueCount !== 1 ? 's' : '') + '</strong> from earlier this year.',
                     '</p>',
-                    '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:0.6rem 1rem;font-size:0.8rem;color:#92400e;">',
+                    '<div class="alert alert-warning" style="text-align:left;">',
                     '<i class="fas fa-history" style="margin-right:0.35rem;"></i> Catch up now to protect your compliance record.',
                     '</div>'
                 ].join('');
@@ -1019,14 +764,14 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // Only current month missing, not yet overdue
                 icon = daysLeft <= 5 ? 'warning' : 'info';
-                title = daysLeft <= 5 ? '⏰ Last Chance — ' + currentMonth : currentMonth + ' Report Due';
+                title = daysLeft <= 5 ? 'Last chance: ' + currentMonth : currentMonth + ' Report Due';
                 confirmText = 'Submit Now';
-                confirmColor = daysLeft <= 5 ? '#d97706' : '#0284c7';
+                confirmColor = 'var(--ink)';
                 bodyHtml = [
-                    '<p style="font-size:0.875rem;margin-bottom:0.75rem;">',
+                    '<p style="margin-bottom:var(--spacing-3);">',
                     'You haven\'t submitted your report for <strong>' + currentMonth + '</strong> yet.',
                     '</p>',
-                    '<div style="background:' + (daysLeft <= 5 ? '#fffbeb;border-color:#fde68a;color:#92400e' : '#eff6ff;border-color:#bfdbfe;color:#1e40af') + ';border:1px solid;border-radius:8px;padding:0.6rem 1rem;font-size:0.8rem;">',
+                    '<div class="alert ' + (daysLeft <= 5 ? 'alert-warning' : 'alert-info') + '" style="text-align:left;">',
                     '<i class="fas fa-calendar" style="margin-right:0.35rem;"></i>',
                     daysLeft === 0 ? 'Today is the last day of the month — submit now!' : (daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' remaining this month.'),
                     '</div>'
@@ -1041,8 +786,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 confirmButtonText: '<i class="fas fa-plus" style="margin-right:0.35rem;"></i>' + confirmText,
                 cancelButtonText: 'Remind Me Later',
                 confirmButtonColor: confirmColor,
-                cancelButtonColor: '#6b7280',
-                footer: '<a href="' + historyUrl + '" style="font-size:0.75rem;color:#6b7280;">View all submitted reports</a>'
+                cancelButtonColor: 'var(--neutral-500)',
+                footer: '<a href="' + historyUrl + '" class="link" style="font-size:var(--text-xs);">View all submitted reports</a>'
             }).then(function(result) {
                 if (result.isConfirmed) {
                     window.location.href = submitUrl;

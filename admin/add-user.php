@@ -30,13 +30,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
     $name = $_POST['name'] ?? '';
     $password = $_POST['password'] ?? '';
-    $role = $_POST['role'] ?? 'user';
+    $role = $_POST['role'] ?? ROLE_RZM;
     $region = $_POST['region'] ?? '';
     $zone = trim($_POST['zone'] ?? '');
     $active = isset($_POST['active']) ? 1 : 0;
-    $zoneRequired = ($role === ROLE_USER);
+    $zoneRequired = ($role === ROLE_RZM);
 
-    if (empty($username) || empty($name) || empty($password) || empty($region) || ($zoneRequired && empty($zone))) {
+    if (!in_array($role, [ROLE_ADMIN, ROLE_ADMIN_MANAGER, ROLE_RZM], true)) {
+        $error = "Invalid role";
+    } elseif (empty($username) || empty($name) || empty($password) || empty($region) || ($zoneRequired && empty($zone))) {
         $error = $zoneRequired ? "All fields are required" : "Username, name, password and region are required";
     } else {
         try {
@@ -69,85 +71,79 @@ require_once '../layouts/header.php';
 ?>
 
 <style>
-.au-page { max-width: 560px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
-.au-topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; }
-.au-topbar h1 { font-size:1.125rem; font-weight:700; color:var(--neutral-900); margin:0; }
-.au-card { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; overflow:hidden; }
-.au-card-head { padding:0.85rem 1.25rem; border-bottom:1px solid var(--neutral-200); }
-.au-card-head h2 { font-size:0.875rem; font-weight:600; color:var(--neutral-900); margin:0; text-transform:uppercase; letter-spacing:0.04em; }
-.au-card-body { padding:1.25rem; }
-.au-check-row { display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem; }
-.au-check-row input { width:1rem; height:1rem; accent-color:var(--primary-600); }
-.au-check-row label { font-size:0.85rem; color:var(--neutral-700); }
+.uf-check { display: flex; align-items: center; gap: var(--spacing-2); grid-column: 1 / -1; margin-bottom: var(--spacing-5); font-size: var(--text-sm); color: var(--neutral-800); }
 </style>
 
-<div class="au-page">
-    <div class="au-topbar">
-        <h1>Add New User</h1>
-        <a href="users.php" class="modern-button modern-button-secondary" style="font-size:0.8125rem;"><i class="fas fa-arrow-left modern-button-icon"></i> Back</a>
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="users.php">People</a><span class="sep" aria-hidden="true">›</span><span aria-current="page">Add</span></nav>
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Add person</h1>
+        <p class="page-sub">Create an account. RZMs also need a zone.</p>
     </div>
+</div>
 
-    <?php if ($error): ?>
-    <div style="background:var(--danger-50);border:1px solid var(--danger-200);color:var(--danger-700);padding:0.75rem 1rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.85rem;"><?php echo htmlspecialchars($error); ?></div>
-    <?php endif; ?>
-    <?php if ($success): ?>
-    <div style="background:var(--success-50);border:1px solid var(--success-200);color:var(--success-700);padding:0.75rem 1rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.85rem;"><?php echo htmlspecialchars($success); ?></div>
-    <?php endif; ?>
+<div class="panel" style="max-width:48rem;">
+    <div class="panel-body">
+        <?php if ($error): ?>
+        <div class="alert alert-danger" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div><?php echo htmlspecialchars($error); ?></div></div>
+        <?php endif; ?>
+        <?php if ($success): ?>
+        <div class="alert alert-success" role="status"><i class="fas fa-check-circle" aria-hidden="true"></i><div><?php echo htmlspecialchars($success); ?> <a href="users.php" class="link">Back to People</a></div></div>
+        <?php endif; ?>
 
-    <div class="au-card">
-        <div class="au-card-head"><h2>User Details</h2></div>
-        <div class="au-card-body">
-            <form method="POST" class="space-y-4">
-                <div class="modern-form-group">
-                    <label for="username" class="modern-form-label">Username</label>
-                    <input type="text" name="username" id="username" required class="modern-form-input">
+        <form method="POST">
+            <div class="form-grid">
+                <div class="field">
+                    <label for="name" class="field-label">Full name</label>
+                    <input type="text" name="name" id="name" required class="input" autocomplete="off" value="<?php echo $error ? htmlspecialchars($name ?? '') : ''; ?>">
                 </div>
-                <div class="modern-form-group">
-                    <label for="name" class="modern-form-label">Full Name</label>
-                    <input type="text" name="name" id="name" required class="modern-form-input">
+                <div class="field">
+                    <label for="username" class="field-label">Username</label>
+                    <input type="text" name="username" id="username" required class="input" autocomplete="off" value="<?php echo $error ? htmlspecialchars($username ?? '') : ''; ?>">
                 </div>
-                <div class="modern-form-group">
-                    <label for="password" class="modern-form-label">Password</label>
-                    <input type="password" name="password" id="password" required class="modern-form-input">
+                <div class="field">
+                    <label for="password" class="field-label">Password</label>
+                    <input type="password" name="password" id="password" required class="input" autocomplete="new-password">
                 </div>
-                <div class="modern-form-group">
-                    <label for="role" class="modern-form-label">Role</label>
-                    <select name="role" id="role" required class="modern-form-input">
-                        <option value="user">RZM</option>
-                        <option value="admin-manager">Admin Manager</option>
-                        <option value="admin">Admin</option>
+                <div class="field">
+                    <label for="role" class="field-label">Role</label>
+                    <select name="role" id="role" required class="input">
+                        <option value="rzm">RZM</option>
+                        <option value="admin-manager"<?php echo ($error && ($role ?? '') === 'admin-manager') ? ' selected' : ''; ?>>Admin Manager</option>
+                        <option value="admin"<?php echo ($error && ($role ?? '') === 'admin') ? ' selected' : ''; ?>>Administrator</option>
                     </select>
                 </div>
-                <div class="modern-form-group">
-                    <label for="region" class="modern-form-label">Region</label>
-                    <select name="region" id="region" required class="modern-form-input">
-                        <option value="">Select Region</option>
+                <div class="field">
+                    <label for="region" class="field-label">Region</label>
+                    <select name="region" id="region" required class="input">
+                        <option value="">Select region</option>
                         <?php foreach ($REGIONS_ZONES as $region => $zones): ?>
                             <option value="<?php echo htmlspecialchars($region); ?>"><?php echo htmlspecialchars($region); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="modern-form-group" id="zoneGroup">
-                    <label for="zone" class="modern-form-label">Zone</label>
-                    <select name="zone" id="zone" required class="modern-form-input">
-                        <option value="">Select Zone</option>
+                <div class="field" id="zoneGroup">
+                    <label for="zone" class="field-label">Zone</label>
+                    <select name="zone" id="zone" required class="input">
+                        <option value="">Select zone</option>
                     </select>
                 </div>
-                <div class="au-check-row">
+                <label class="uf-check" for="active">
                     <input type="checkbox" name="active" id="active" checked>
-                    <label for="active">Active (user can log in immediately)</label>
-                </div>
-                <div style="padding-top:0.75rem;border-top:1px solid var(--neutral-200);margin-top:0.5rem;">
-                    <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;" data-loading-text="Adding User…"><i class="fas fa-user-plus modern-button-icon"></i> Add User</button>
-                </div>
-            </form>
-        </div>
+                    Active (can sign in immediately)
+                </label>
+            </div>
+            <div class="form-actions">
+                <a href="users.php" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary" data-loading-text="Adding…">Add person</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <script>
 // Load the regions and zones data from the JSON file
-const regionsZones = <?php echo json_encode($REGIONS_ZONES); ?>;
+const regionsZones = <?php echo json_encode($REGIONS_ZONES, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
 function updateZones() {
     const regionSelect = document.getElementById('region');
@@ -155,7 +151,7 @@ function updateZones() {
     const selectedRegion = regionSelect.value;
     
     // Clear current options
-    zoneSelect.innerHTML = '<option value="">Select Zone</option>';
+    zoneSelect.innerHTML = '<option value="">Select zone</option>';
     
     // Add new options if a region is selected
     if (selectedRegion && regionsZones[selectedRegion]) {
@@ -177,7 +173,7 @@ function toggleZoneRequirement() {
     const role = document.getElementById('role').value;
     const zoneGroup = document.getElementById('zoneGroup');
     const zone = document.getElementById('zone');
-    const requiresZone = role === 'user';
+    const requiresZone = role === 'rzm';
     zoneGroup.style.display = requiresZone ? 'block' : 'none';
     zone.required = requiresZone;
     if (!requiresZone) {
@@ -196,7 +192,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php
-// Close main tag from header
-echo '</main></body></html>';
-?>
+<?php require_once '../layouts/footer.php'; ?>

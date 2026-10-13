@@ -22,6 +22,10 @@ $userId = (int)$_SESSION['user_id'];
 $filterYear   = isset($_GET['year'])   ? (int)$_GET['year']   : (int)date('Y');
 $filterRegion = isset($_GET['region']) ? trim($_GET['region']) : '';
 $filterZone   = isset($_GET['zone'])   ? trim($_GET['zone'])   : '';
+// Admin managers only ever see their own region, whatever the query string says
+if ($isAdminManager && !$isAdmin) {
+    $filterRegion = html_entity_decode((string)Auth::getScopedRegion(), ENT_QUOTES, 'UTF-8') ?: '__no_region__';
+}
 
 // Available years
 $yearsStmt = $conn->query("SELECT DISTINCT YEAR(report_month) as y FROM reports ORDER BY y DESC");
@@ -31,6 +35,7 @@ if (!$availableYears) $availableYears = [(int)date('Y')];
 // Available regions / zones for filters
 $regionsStmt = $conn->query("SELECT DISTINCT region FROM users WHERE region IS NOT NULL AND region != '' ORDER BY region");
 $allRegions  = $regionsStmt->fetchAll(PDO::FETCH_COLUMN);
+if ($isAdminManager && !$isAdmin) { $allRegions = [$filterRegion]; }
 
 $zonesQuery = "SELECT DISTINCT zone FROM users WHERE zone IS NOT NULL AND zone != ''";
 $zonesParams = [];
@@ -234,17 +239,17 @@ if (!$isPrivileged) {
                           + $nowDt->format('n') - $firstDt->format('n') + 1;
     }
 
-    if ($totalReports >= 1)  $badges[] = ['icon'=>'fa-star',        'color'=>'#f59e0b','label'=>'First Report',       'desc'=>'You submitted your first report'];
-    if ($totalReports >= 3)  $badges[] = ['icon'=>'fa-seedling',     'color'=>'#10b981','label'=>'Getting Started',    'desc'=>'3 reports submitted'];
-    if ($totalReports >= 6)  $badges[] = ['icon'=>'fa-medal',        'color'=>'#0ea5e9','label'=>'Half Year',          'desc'=>'6 months of reporting'];
-    if ($totalReports >= 12) $badges[] = ['icon'=>'fa-trophy',       'color'=>'#f59e0b','label'=>'Full Year',          'desc'=>'12 months of reporting'];
-    if ($streakCount  >= 3)  $badges[] = ['icon'=>'fa-fire',         'color'=>'#ef4444','label'=>'On Fire',            'desc'=>'3-month streak'];
-    if ($streakCount  >= 6)  $badges[] = ['icon'=>'fa-fire-alt',     'color'=>'#dc2626','label'=>'Unstoppable',        'desc'=>'6-month streak'];
-    if ($streakCount  >= 12) $badges[] = ['icon'=>'fa-crown',        'color'=>'#7c3aed','label'=>'Legendary',         'desc'=>'12-month streak'];
-    if ((int)($allTimeStats['souls'] ?? 0) >= 100)     $badges[] = ['icon'=>'fa-heart',        'color'=>'#ec4899','label'=>'Soul Winner',        'desc'=>'100+ souls won'];
-    if ((int)($allTimeStats['souls'] ?? 0) >= 500)     $badges[] = ['icon'=>'fa-hands-helping','color'=>'#8b5cf6','label'=>'Soul Champion',      'desc'=>'500+ souls won'];
-    if ((int)($allTimeStats['churches'] ?? 0) >= 5)    $badges[] = ['icon'=>'fa-church',       'color'=>'#6366f1','label'=>'Church Planter',     'desc'=>'5+ new churches'];
-    if ((int)($allTimeStats['partners'] ?? 0) >= 50)   $badges[] = ['icon'=>'fa-handshake',    'color'=>'#0d9488','label'=>'Partner Builder',    'desc'=>'50+ new partners'];
+    if ($totalReports >= 1)  $badges[] = ['icon'=>'fa-star',        'label'=>'First Report',       'desc'=>'You submitted your first report'];
+    if ($totalReports >= 3)  $badges[] = ['icon'=>'fa-seedling',     'label'=>'Getting Started',    'desc'=>'3 reports submitted'];
+    if ($totalReports >= 6)  $badges[] = ['icon'=>'fa-medal',        'label'=>'Half Year',          'desc'=>'6 months of reporting'];
+    if ($totalReports >= 12) $badges[] = ['icon'=>'fa-trophy',       'label'=>'Full Year',          'desc'=>'12 months of reporting'];
+    if ($streakCount  >= 3)  $badges[] = ['icon'=>'fa-fire',         'label'=>'On Fire',            'desc'=>'3-month streak'];
+    if ($streakCount  >= 6)  $badges[] = ['icon'=>'fa-fire-alt',     'label'=>'Unstoppable',        'desc'=>'6-month streak'];
+    if ($streakCount  >= 12) $badges[] = ['icon'=>'fa-crown',        'label'=>'Legendary',         'desc'=>'12-month streak'];
+    if ((int)($allTimeStats['souls'] ?? 0) >= 100)     $badges[] = ['icon'=>'fa-heart',        'label'=>'Soul Winner',        'desc'=>'100+ souls won'];
+    if ((int)($allTimeStats['souls'] ?? 0) >= 500)     $badges[] = ['icon'=>'fa-hands-helping','label'=>'Soul Champion',      'desc'=>'500+ souls won'];
+    if ((int)($allTimeStats['churches'] ?? 0) >= 5)    $badges[] = ['icon'=>'fa-church',       'label'=>'Church Planter',     'desc'=>'5+ new churches'];
+    if ((int)($allTimeStats['partners'] ?? 0) >= 50)   $badges[] = ['icon'=>'fa-handshake',    'label'=>'Partner Builder',    'desc'=>'50+ new partners'];
 }
 
 // ── 7. Zone performance comparison (admin) ───────────────────────────────
@@ -294,116 +299,6 @@ if ($isPrivileged) {
 require_once '../layouts/header.php';
 ?>
 
-<style>
-.an-page { max-width:1100px; margin:0 auto; padding:1.5rem 1rem 3rem; }
-.an-breadcrumb { display:flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--neutral-400); margin-bottom:1.25rem; flex-wrap:wrap; }
-.an-breadcrumb a { color:var(--neutral-500); text-decoration:none; }
-.an-breadcrumb a:hover { color:var(--primary-600); }
-.an-breadcrumb .sep { color:var(--neutral-300); }
-.an-head { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.5rem; }
-.an-head-left h1 { font-size:1.2rem; font-weight:700; color:var(--neutral-900); margin:0 0 0.2rem; }
-.an-head-left p  { font-size:0.8rem; color:var(--neutral-500); margin:0; }
-
-/* Filters */
-.an-filters { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; background:#fff; border:1px solid var(--neutral-200); border-radius:var(--radius-lg); padding:0.75rem 1rem; margin-bottom:1.5rem; }
-.an-filters label { font-size:0.75rem; font-weight:600; color:var(--neutral-500); margin-right:0.2rem; }
-.an-filters select { font-size:0.8rem; padding:0.3rem 0.6rem; border:1px solid var(--neutral-200); border-radius:var(--radius-md); color:var(--neutral-700); background:#fff; }
-.an-filters button { font-size:0.8rem; }
-
-/* Section card */
-.an-section { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; overflow:hidden; margin-bottom:1.25rem; }
-.an-section-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; padding:0.8rem 1.1rem; background:var(--neutral-50); border-bottom:1px solid var(--neutral-100); }
-.an-section-head h2 { font-size:0.8125rem; font-weight:700; color:var(--neutral-800); margin:0; text-transform:uppercase; letter-spacing:0.05em; display:flex; align-items:center; gap:0.5rem; }
-.an-section-body { padding:1.1rem; }
-
-/* Stat strip */
-.an-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--neutral-200); border:1px solid var(--neutral-200); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1.25rem; }
-@media(max-width:680px){ .an-stats { grid-template-columns:repeat(2,1fr); } }
-.an-stat { background:#fff; padding:1rem 1.25rem; }
-.an-stat-lbl { font-size:0.68rem; font-weight:600; color:var(--neutral-400); text-transform:uppercase; letter-spacing:0.05em; }
-.an-stat-val { font-size:1.35rem; font-weight:700; color:var(--neutral-900); line-height:1.2; margin:0.15rem 0; }
-.an-stat-sub { font-size:0.7rem; color:var(--neutral-400); }
-
-/* Chart containers */
-.an-chart-wrap { position:relative; height:260px; }
-.an-chart-wrap-sm { position:relative; height:220px; }
-
-/* Heatmap */
-.an-heatmap { display:grid; grid-template-columns:repeat(6,1fr); gap:0.5rem; }
-@media(max-width:500px){ .an-heatmap { grid-template-columns:repeat(4,1fr); } }
-.an-hm-cell { border-radius:var(--radius-md); padding:0.7rem 0.5rem; text-align:center; background:var(--neutral-100); border:1px solid var(--neutral-200); transition:transform 0.1s; cursor:default; }
-.an-hm-cell:hover { transform:scale(1.04); }
-.an-hm-cell.hm-0  { background:#f1f5f9; border-color:#e2e8f0; }
-.an-hm-cell.hm-1  { background:#dbeafe; border-color:#bfdbfe; }
-.an-hm-cell.hm-2  { background:#bfdbfe; border-color:#93c5fd; }
-.an-hm-cell.hm-3  { background:#60a5fa; border-color:#3b82f6; color:#fff; }
-.an-hm-cell.hm-4  { background:#2563eb; border-color:#1d4ed8; color:#fff; }
-.an-hm-cell-lbl { font-size:0.65rem; font-weight:600; color:inherit; text-transform:uppercase; }
-.an-hm-cell-val { font-size:1.1rem; font-weight:700; color:inherit; }
-
-/* Leaderboard table */
-.an-lb { width:100%; border-collapse:collapse; font-size:0.8rem; }
-.an-lb th { font-size:0.68rem; font-weight:700; color:var(--neutral-500); text-transform:uppercase; letter-spacing:0.04em; padding:0.5rem 0.75rem; text-align:left; border-bottom:1px solid var(--neutral-200); white-space:nowrap; }
-.an-lb td { padding:0.6rem 0.75rem; border-bottom:1px solid var(--neutral-100); color:var(--neutral-700); vertical-align:middle; }
-.an-lb tr:last-child td { border-bottom:none; }
-.an-lb tr:hover td { background:var(--neutral-50); }
-.an-rank { display:inline-flex; align-items:center; justify-content:center; width:1.5rem; height:1.5rem; border-radius:50%; font-size:0.72rem; font-weight:700; background:var(--neutral-100); color:var(--neutral-600); }
-.an-rank.r1 { background:#fef08a; color:#713f12; }
-.an-rank.r2 { background:#e2e8f0; color:#374151; }
-.an-rank.r3 { background:#fde8d0; color:#7c2d12; }
-.an-rate-bar { display:flex; align-items:center; gap:0.5rem; }
-.an-rate-track { flex:1; height:6px; background:var(--neutral-100); border-radius:3px; overflow:hidden; }
-.an-rate-fill { height:100%; border-radius:3px; transition:width 0.6s ease; }
-
-/* Badges */
-.an-badges { display:flex; flex-wrap:wrap; gap:0.75rem; }
-.an-badge { display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0.9rem; border-radius:var(--radius-lg); border:1px solid; background:#fff; }
-.an-badge-icon { width:1.75rem; height:1.75rem; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem; flex-shrink:0; }
-.an-badge-text strong { font-size:0.78rem; font-weight:700; display:block; color:var(--neutral-900); }
-.an-badge-text span   { font-size:0.68rem; color:var(--neutral-500); }
-.an-badge-locked { opacity:0.35; filter:grayscale(1); }
-
-/* Streak hero */
-.an-streak { display:flex; align-items:center; gap:1.25rem; padding:1rem 1.25rem; background:linear-gradient(135deg,#fff7ed,#fef3c7); border:1px solid #fed7aa; border-radius:var(--radius-lg); margin-bottom:1rem; }
-.an-streak-icon { font-size:2.2rem; }
-.an-streak-label { font-size:0.78rem; color:var(--warning-700); font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
-.an-streak-value { font-size:2rem; font-weight:800; color:var(--warning-600); line-height:1; }
-.an-streak-desc { font-size:0.78rem; color:var(--neutral-500); margin-top:0.15rem; }
-.an-streak-zero { background:var(--neutral-50); border-color:var(--neutral-200); }
-.an-streak-zero .an-streak-icon { opacity:0.3; }
-
-/* Timeline */
-.an-timeline { display:flex; flex-direction:column; gap:0; }
-.an-tl-item { display:flex; align-items:flex-start; gap:0.75rem; padding:0.65rem 0; border-bottom:1px solid var(--neutral-100); }
-.an-tl-item:last-child { border-bottom:none; }
-.an-tl-dot-col { display:flex; flex-direction:column; align-items:center; gap:0; padding-top:0.15rem; }
-.an-tl-dot { width:0.65rem; height:0.65rem; border-radius:50%; background:var(--primary-400); flex-shrink:0; }
-.an-tl-dot.latest { background:var(--success-500); box-shadow:0 0 0 3px rgba(16,185,129,0.15); }
-.an-tl-month { font-size:0.78rem; font-weight:700; color:var(--neutral-900); }
-.an-tl-stats { font-size:0.72rem; color:var(--neutral-500); display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:0.1rem; }
-.an-tl-stat  { display:flex; align-items:center; gap:0.2rem; }
-
-/* Region comparison */
-.an-region-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.75rem; }
-.an-region-card { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); padding:0.85rem 1rem; background:#fff; }
-.an-region-card h4 { font-size:0.8rem; font-weight:700; color:var(--neutral-800); margin:0 0 0.5rem; }
-.an-region-stat { display:flex; justify-content:space-between; font-size:0.76rem; color:var(--neutral-600); margin-bottom:0.2rem; }
-.an-region-stat strong { color:var(--neutral-900); }
-
-/* Export bar */
-.an-export { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
-
-/* two col */
-.an-two { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem; }
-@media(max-width:800px){ .an-two { grid-template-columns:1fr; } }
-
-/* success state */
-.an-success-state { text-align:center; padding:2rem 1rem; }
-.an-success-state .an-ss-icon { font-size:2.5rem; color:var(--success-500); margin-bottom:0.5rem; }
-.an-success-state h3 { font-size:1rem; font-weight:700; color:var(--neutral-900); margin:0 0 0.25rem; }
-.an-success-state p  { font-size:0.8rem; color:var(--neutral-500); margin:0; }
-</style>
-
 <?php
 // Compute aggregate stats for the stat strip
 $aggParams = [':year' => $filterYear];
@@ -428,176 +323,182 @@ $monthNames = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'May','06'=
                '07'=>'Jul','08'=>'Aug','09'=>'Sep','10'=>'Oct','11'=>'Nov','12'=>'Dec'];
 ?>
 
-<div class="an-page">
+<style>
+/* Page-local analytics pieces (tokens only) */
+.an-chart { position: relative; height: 280px; }
+.an-chart-sm { position: relative; height: 220px; }
+.an-panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-3); }
+.an-panel-head .tabs { margin-bottom: 0; max-width: 100%; overflow-x: auto; }
+.an-kpis { grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); margin-bottom: var(--spacing-6); }
+.an-stack .grid-2 { align-items: start; }
+.an-page-tables .data-table td, .an-stack .data-table td { white-space: nowrap; }
+@media (max-width: 500px) { .an-kpis .stat-value { font-size: var(--text-lg); } }
+.an-stack { display: grid; gap: var(--spacing-6); margin-bottom: var(--spacing-6); }
 
-    <div class="an-breadcrumb">
-        <a href="<?php echo BASE_URL; ?>/dashboard.php"><i class="fas fa-home" style="font-size:0.7rem;"></i> Dashboard</a>
-        <span class="sep">/</span>
-        <span>Analytics</span>
+/* Heatmap: one sequential ramp from signal blue */
+.an-heatmap { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--spacing-2); }
+@media (max-width: 500px) { .an-heatmap { grid-template-columns: repeat(4, 1fr); } }
+.an-hm-cell { border-radius: var(--radius-md); padding: var(--spacing-3) var(--spacing-2); text-align: center; background: var(--neutral-100); color: var(--neutral-800); }
+.an-hm-cell.hm-1 { background: var(--primary-100); }
+.an-hm-cell.hm-2 { background: var(--primary-200); }
+.an-hm-cell.hm-3 { background: var(--primary-300); color: var(--ink); }
+.an-hm-cell.hm-4 { background: var(--primary-700); color: var(--neutral-50); }
+.an-hm-cell .meta { color: inherit; opacity: 0.8; }
+.an-hm-val { font-size: var(--text-lg); font-weight: 500; font-variant-numeric: tabular-nums; }
+.an-legend { display: flex; align-items: center; justify-content: flex-end; gap: var(--spacing-1); margin-top: var(--spacing-3); }
+.an-legend i { width: 0.75rem; height: 0.75rem; border-radius: 3px; background: var(--neutral-100); display: inline-block; }
+.an-legend i.hm-1 { background: var(--primary-100); } .an-legend i.hm-2 { background: var(--primary-200); }
+.an-legend i.hm-3 { background: var(--primary-300); } .an-legend i.hm-4 { background: var(--primary-700); }
+
+/* Compliance rate bar */
+.an-rate { display: flex; align-items: center; gap: var(--spacing-2); min-width: 8rem; }
+.an-rate-track { flex: 1; height: 6px; background: var(--neutral-100); border-radius: var(--radius-full); overflow: hidden; }
+.an-rate-fill { height: 100%; border-radius: inherit; background: var(--success-600); }
+.an-rate.mid .an-rate-fill { background: var(--warning-500); }
+.an-rate.low .an-rate-fill { background: var(--ember); }
+.an-rate-val { font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--neutral-700); min-width: 2.5rem; text-align: right; }
+
+/* Timeline list */
+.an-tl { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; border-top: 1px solid var(--neutral-200); }
+.an-tl li { display: flex; align-items: baseline; gap: var(--spacing-3); padding: var(--spacing-3) 0; border-bottom: 1px solid var(--neutral-200); }
+.an-tl li:last-child { border-bottom: 0; }
+.an-tl-main { flex: 1; min-width: 0; }
+.an-tl-month { font-weight: 500; color: var(--neutral-900); }
+.an-tl-stats { font-size: var(--text-xs); color: var(--neutral-600); display: flex; flex-wrap: wrap; gap: var(--spacing-3); font-variant-numeric: tabular-nums; }
+
+/* Quieter achievements block */
+.an-achieve { display: grid; gap: var(--spacing-4); }
+.an-streak { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--spacing-2) var(--spacing-4); }
+.an-streak-value { font-size: var(--text-lg); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--neutral-900); }
+.an-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: var(--spacing-2); list-style: none; margin: 0; padding: 0; }
+.an-badge { display: flex; align-items: center; gap: var(--spacing-3); padding: var(--spacing-2) var(--spacing-3); border: 1px solid var(--neutral-200); border-radius: var(--radius-md); background: var(--surface, #fff); font-size: var(--text-sm); }
+.an-badge i { width: 1rem; text-align: center; color: var(--neutral-600); font-size: var(--text-sm); }
+.an-badge small { display: block; font-size: var(--text-xs); color: var(--neutral-500); }
+.an-badge.is-locked { background: transparent; color: var(--neutral-500); }
+.an-badge.is-locked i { color: var(--neutral-400); }
+.an-badge.is-earned .an-badge-state { color: var(--success-700); }
+.an-badge-state { margin-left: auto; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+</style>
+
+<?php
+$hasRegionFilter = $isPrivileged && $filterRegion !== '';
+$exportQuery = 'year=' . (int)$filterYear . ($filterRegion ? '&region=' . urlencode($filterRegion) : '');
+$periodLabel = (string)(int)$filterYear . ($isPrivileged && $filterRegion ? ' · ' . $filterRegion : '') . ($isPrivileged && $filterZone ? ' · ' . $filterZone : '');
+?>
+
+<nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="<?php echo BASE_URL; ?>/dashboard.php">Dashboard</a>
+    <span class="sep">/</span>
+    <span>Analytics</span>
+</nav>
+
+<header class="page-head">
+    <div>
+        <p class="page-eyebrow">Analytics &middot; <?php echo htmlspecialchars($periodLabel); ?></p>
+        <h1 class="page-title"><?php echo $isPrivileged ? 'Performance analytics' : 'Your performance'; ?></h1>
+        <p class="page-sub"><?php echo $isPrivileged ? 'Trends, regional comparison and submission compliance.' : 'Your monthly trends and submission history.'; ?></p>
     </div>
-
-    <div class="an-head">
-        <div class="an-head-left">
-            <h1><i class="fas fa-chart-area" style="color:var(--primary-500);margin-right:0.4rem;font-size:1rem;"></i>Analytics &amp; Reporting</h1>
-            <p><?php echo $isPrivileged ? 'Organisation-wide performance trends and compliance insights' : 'Your personal performance trends and submission history'; ?></p>
-        </div>
-        <div class="an-export">
-            <?php if ($isPrivileged): ?>
-            <a href="<?php echo BASE_URL; ?>/admin/export_summary_report.php?year=<?php echo $filterYear; ?><?php echo $filterRegion ? '&region='.urlencode($filterRegion) : ''; ?>" class="modern-button modern-button-secondary" style="font-size:0.78rem;"><i class="fas fa-file-csv modern-button-icon"></i>Export CSV</a>
-            <a href="<?php echo BASE_URL; ?>/admin/export_compliance_report.php?year=<?php echo $filterYear; ?><?php echo $filterRegion ? '&region='.urlencode($filterRegion) : ''; ?>" class="modern-button modern-button-secondary" style="font-size:0.78rem;"><i class="fas fa-file-alt modern-button-icon"></i>Compliance Report</a>
-            <?php endif; ?>
-        </div>
+    <?php if ($isPrivileged): ?>
+    <div class="page-actions">
+        <a href="<?php echo BASE_URL; ?>/admin/export_summary_report.php?<?php echo htmlspecialchars($exportQuery); ?>" class="btn btn-secondary"><i class="fas fa-file-csv" aria-hidden="true"></i> Export CSV</a>
+        <a href="<?php echo BASE_URL; ?>/admin/export_compliance_report.php?<?php echo htmlspecialchars($exportQuery); ?>" class="btn btn-secondary"><i class="fas fa-file-alt" aria-hidden="true"></i> Compliance report</a>
     </div>
+    <?php endif; ?>
+</header>
 
-    <!-- Filters -->
-    <form method="GET" class="an-filters">
-        <label for="an-year">Year</label>
-        <select name="year" id="an-year">
+<!-- Period selector -->
+<form method="GET" class="toolbar" aria-label="Analytics period">
+    <div class="field">
+        <label for="an-year" class="field-label">Year</label>
+        <select name="year" id="an-year" class="input">
             <?php foreach ($availableYears as $y): ?>
-            <option value="<?php echo $y; ?>" <?php echo $y==$filterYear?'selected':''; ?>><?php echo $y; ?></option>
+            <option value="<?php echo (int)$y; ?>" <?php echo $y==$filterYear?'selected':''; ?>><?php echo (int)$y; ?></option>
             <?php endforeach; ?>
         </select>
-        <?php if ($isPrivileged): ?>
-        <label for="an-region" style="margin-left:0.5rem;">Region</label>
-        <select name="region" id="an-region">
-            <option value="">All Regions</option>
+    </div>
+    <?php if ($isPrivileged): ?>
+    <div class="field">
+        <label for="an-region" class="field-label">Region</label>
+        <select name="region" id="an-region" class="input">
+            <?php if ($isAdmin): ?><option value="">All regions</option><?php endif; ?>
             <?php foreach ($allRegions as $r): ?>
             <option value="<?php echo htmlspecialchars($r); ?>" <?php echo $r===$filterRegion?'selected':''; ?>><?php echo htmlspecialchars($r); ?></option>
             <?php endforeach; ?>
         </select>
-        <label for="an-zone" style="margin-left:0.5rem;">Zone</label>
-        <select name="zone" id="an-zone">
-            <option value="">All Zones</option>
+    </div>
+    <div class="field">
+        <label for="an-zone" class="field-label">Zone</label>
+        <select name="zone" id="an-zone" class="input">
+            <option value="">All zones</option>
             <?php foreach ($allZones as $z): ?>
             <option value="<?php echo htmlspecialchars($z); ?>" <?php echo $z===$filterZone?'selected':''; ?>><?php echo htmlspecialchars($z); ?></option>
             <?php endforeach; ?>
         </select>
-        <?php endif; ?>
-        <button type="submit" class="modern-button modern-button-primary" style="font-size:0.78rem;padding:0.35rem 0.85rem;"><i class="fas fa-filter modern-button-icon"></i>Apply</button>
-        <?php if ($filterYear != date('Y') || $filterRegion || $filterZone): ?>
-        <a href="analytics.php" class="modern-button modern-button-secondary" style="font-size:0.78rem;padding:0.35rem 0.75rem;">Reset</a>
-        <?php endif; ?>
-    </form>
-
-    <!-- Stat strip -->
-    <div class="an-stats">
-        <div class="an-stat">
-            <div class="an-stat-lbl">Total Submissions</div>
-            <div class="an-stat-val"><?php echo number_format($agg['reports'] ?? 0); ?></div>
-            <div class="an-stat-sub"><?php echo $filterYear; ?><?php echo $filterRegion ? ' · '.$filterRegion : ''; ?></div>
-        </div>
-        <div class="an-stat">
-            <div class="an-stat-lbl">Copies Sponsored</div>
-            <div class="an-stat-val"><?php echo number_format($agg['copies'] ?? 0); ?></div>
-            <div class="an-stat-sub">Total for period</div>
-        </div>
-        <div class="an-stat">
-            <div class="an-stat-lbl">Souls Won</div>
-            <div class="an-stat-val"><?php echo number_format($agg['souls'] ?? 0); ?></div>
-            <div class="an-stat-sub">Total for period</div>
-        </div>
-        <div class="an-stat">
-            <div class="an-stat-lbl"><?php echo $isPrivileged ? 'Active RZMs' : 'New Partners'; ?></div>
-            <div class="an-stat-val"><?php echo $isPrivileged ? number_format($agg['users'] ?? 0) : number_format($agg['partners'] ?? 0); ?></div>
-            <div class="an-stat-sub">Total for period</div>
-        </div>
-    </div>
-
-    <?php if (!$isPrivileged): ?>
-    <!-- ══ Non-admin: streak hero ══ -->
-    <div class="an-streak <?php echo $streakCount === 0 ? 'an-streak-zero' : ''; ?>" style="margin-bottom:1.25rem;">
-        <div class="an-streak-icon"><?php echo $streakCount >= 6 ? '🔥' : ($streakCount >= 3 ? '⚡' : '📅'); ?></div>
-        <div>
-            <div class="an-streak-label">Submission Streak</div>
-            <div class="an-streak-value"><?php echo $streakCount; ?> month<?php echo $streakCount !== 1 ? 's' : ''; ?></div>
-            <div class="an-streak-desc">
-                <?php if ($streakCount === 0): ?>You haven't built a streak yet — submit to start one!
-                <?php elseif ($streakCount < 3): ?>Good start! Keep submitting every month to build your streak.
-                <?php elseif ($streakCount < 6): ?>You're on fire! <?php echo 6-$streakCount; ?> more months to earn the Unstoppable badge.
-                <?php elseif ($streakCount < 12): ?>Incredible — <?php echo 12-$streakCount; ?> more months to Legendary status.
-                <?php else: ?>Legendary! You've maintained a <?php echo $streakCount; ?>-month streak.
-                <?php endif; ?>
-            </div>
-        </div>
-        <?php if ($streakCount === 0): ?>
-        <a href="<?php echo BASE_URL; ?>/pages/reports/create.php" class="modern-button modern-button-primary" style="font-size:0.78rem;margin-left:auto;">Start Streak &rarr;</a>
-        <?php endif; ?>
-    </div>
-
-    <!-- ══ Badges ══ -->
-    <div class="an-section" style="margin-bottom:1.25rem;">
-        <div class="an-section-head">
-            <h2><i class="fas fa-award" style="color:#f59e0b;"></i> Achievements &amp; Badges</h2>
-            <span style="font-size:0.75rem;color:var(--neutral-400);"><?php echo count($badges); ?> earned</span>
-        </div>
-        <div class="an-section-body">
-            <?php
-            $allBadgeDefs = [
-                ['icon'=>'fa-star',        'color'=>'#f59e0b','label'=>'First Report',    'desc'=>'Submit your first report'],
-                ['icon'=>'fa-seedling',     'color'=>'#10b981','label'=>'Getting Started', 'desc'=>'3 reports submitted'],
-                ['icon'=>'fa-medal',        'color'=>'#0ea5e9','label'=>'Half Year',       'desc'=>'6 months of reporting'],
-                ['icon'=>'fa-trophy',       'color'=>'#f59e0b','label'=>'Full Year',       'desc'=>'12 months of reporting'],
-                ['icon'=>'fa-fire',         'color'=>'#ef4444','label'=>'On Fire',         'desc'=>'3-month streak'],
-                ['icon'=>'fa-fire-alt',     'color'=>'#dc2626','label'=>'Unstoppable',     'desc'=>'6-month streak'],
-                ['icon'=>'fa-crown',        'color'=>'#7c3aed','label'=>'Legendary',       'desc'=>'12-month streak'],
-                ['icon'=>'fa-heart',        'color'=>'#ec4899','label'=>'Soul Winner',     'desc'=>'100+ souls won'],
-                ['icon'=>'fa-hands-helping','color'=>'#8b5cf6','label'=>'Soul Champion',  'desc'=>'500+ souls won'],
-                ['icon'=>'fa-church',       'color'=>'#6366f1','label'=>'Church Planter',  'desc'=>'5+ new churches'],
-                ['icon'=>'fa-handshake',    'color'=>'#0d9488','label'=>'Partner Builder', 'desc'=>'50+ new partners'],
-            ];
-            $earnedLabels = array_column($badges, 'label');
-            ?>
-            <div class="an-badges">
-                <?php foreach ($allBadgeDefs as $bd):
-                    $earned = in_array($bd['label'], $earnedLabels);
-                ?>
-                <div class="an-badge <?php echo !$earned ? 'an-badge-locked' : ''; ?>" style="border-color:<?php echo $earned ? $bd['color'].'40' : 'var(--neutral-200)'; ?>;" title="<?php echo htmlspecialchars($bd['desc']); ?>">
-                    <div class="an-badge-icon" style="background:<?php echo $bd['color'].'18'; ?>;color:<?php echo $bd['color']; ?>;">
-                        <i class="fas <?php echo $bd['icon']; ?>"></i>
-                    </div>
-                    <div class="an-badge-text">
-                        <strong><?php echo $bd['label']; ?></strong>
-                        <span><?php echo $bd['desc']; ?></span>
-                    </div>
-                    <?php if ($earned): ?>
-                    <i class="fas fa-check-circle" style="color:var(--success-500);font-size:0.75rem;margin-left:0.25rem;"></i>
-                    <?php else: ?>
-                    <i class="fas fa-lock" style="color:var(--neutral-300);font-size:0.75rem;margin-left:0.25rem;"></i>
-                    <?php endif; ?>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
     </div>
     <?php endif; ?>
+    <div class="toolbar-actions">
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <?php if ($filterYear != date('Y') || $filterRegion || $filterZone): ?>
+        <a href="analytics.php" class="btn btn-secondary">Reset</a>
+        <?php endif; ?>
+    </div>
+</form>
 
-    <!-- ══ Trend Charts ══ -->
-    <div class="an-section">
-        <div class="an-section-head">
-            <h2><i class="fas fa-chart-line" style="color:var(--primary-500);"></i> Historical Trends — Last 12 Months</h2>
-            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-                <button onclick="switchChart('copies')"  class="modern-button modern-button-secondary an-chart-btn active" data-metric="copies"   style="font-size:0.72rem;padding:0.25rem 0.6rem;">Copies</button>
-                <button onclick="switchChart('souls')"   class="modern-button modern-button-secondary an-chart-btn"        data-metric="souls"    style="font-size:0.72rem;padding:0.25rem 0.6rem;">Souls</button>
-                <button onclick="switchChart('partners')"class="modern-button modern-button-secondary an-chart-btn"        data-metric="partners" style="font-size:0.72rem;padding:0.25rem 0.6rem;">Partners</button>
-                <button onclick="switchChart('churches')"class="modern-button modern-button-secondary an-chart-btn"        data-metric="churches" style="font-size:0.72rem;padding:0.25rem 0.6rem;">Churches</button>
-            </div>
+<!-- KPIs -->
+<div class="stat-grid an-kpis">
+    <div class="stat">
+        <span class="stat-label">Submissions</span>
+        <span class="stat-value"><?php echo number_format($agg['reports'] ?? 0); ?></span>
+        <span class="stat-note"><?php echo htmlspecialchars($periodLabel); ?></span>
+    </div>
+    <div class="stat">
+        <span class="stat-label">Copies sponsored</span>
+        <span class="stat-value"><?php echo number_format($agg['copies'] ?? 0); ?></span>
+        <span class="stat-note">Total for period</span>
+    </div>
+    <div class="stat">
+        <span class="stat-label">Souls won</span>
+        <span class="stat-value"><?php echo number_format($agg['souls'] ?? 0); ?></span>
+        <span class="stat-note">Total for period</span>
+    </div>
+    <div class="stat">
+        <span class="stat-label"><?php echo $isPrivileged ? 'Active RZMs' : 'New partners'; ?></span>
+        <span class="stat-value"><?php echo $isPrivileged ? number_format($agg['users'] ?? 0) : number_format($agg['partners'] ?? 0); ?></span>
+        <span class="stat-note"><?php echo $isPrivileged ? 'Submitted at least once' : 'Total for period'; ?></span>
+    </div>
+</div>
+
+<div class="an-stack">
+
+<!-- Main trend -->
+<section class="panel" aria-labelledby="an-trend-title">
+    <div class="panel-head an-panel-head">
+        <div>
+            <h2 id="an-trend-title" class="section-title">Monthly trend</h2>
+            <p class="meta">Last 12 months</p>
         </div>
-        <div class="an-section-body">
-            <div class="an-chart-wrap">
-                <canvas id="trendChart"></canvas>
-            </div>
+        <div class="tabs" role="group" aria-label="Metric">
+            <button type="button" onclick="switchChart('copies')" class="an-chart-btn active" data-metric="copies" aria-pressed="true">Copies</button>
+            <button type="button" onclick="switchChart('souls')" class="an-chart-btn" data-metric="souls" aria-pressed="false">Souls</button>
+            <button type="button" onclick="switchChart('partners')" class="an-chart-btn" data-metric="partners" aria-pressed="false">Partners</button>
+            <button type="button" onclick="switchChart('churches')" class="an-chart-btn" data-metric="churches" aria-pressed="false">Churches</button>
         </div>
     </div>
+    <div class="panel-body">
+        <div class="an-chart"><canvas id="trendChart" role="img" aria-label="Monthly trend chart for the last 12 months"></canvas></div>
+    </div>
+</section>
 
-    <!-- ══ Submission Heatmap ══ -->
-    <div class="an-section">
-        <div class="an-section-head">
-            <h2><i class="fas fa-th" style="color:#6366f1;"></i> Submission Heatmap — <?php echo $filterYear; ?></h2>
+<div class="grid-2">
+    <!-- Heatmap -->
+    <section class="panel" aria-labelledby="an-hm-title">
+        <div class="panel-head">
+            <h2 id="an-hm-title" class="section-title">Submissions by month</h2>
+            <p class="meta"><?php echo (int)$filterYear; ?></p>
         </div>
-        <div class="an-section-body">
-            <?php
-            $maxHm = max(1, max(array_values($hmRaw) ?: [1]));
-            ?>
+        <div class="panel-body">
+            <?php $maxHm = max(1, max(array_values($hmRaw) ?: [1])); ?>
             <div class="an-heatmap">
                 <?php for ($m = 1; $m <= 12; $m++):
                     $mn  = str_pad($m, 2, '0', STR_PAD_LEFT);
@@ -605,273 +506,332 @@ $monthNames = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'May','06'=
                     $intensity = $cnt === 0 ? 0 : min(4, (int)ceil(($cnt / $maxHm) * 4));
                     $isFuture = ($filterYear == (int)date('Y') && $m > (int)date('n'));
                 ?>
-                <div class="an-hm-cell hm-<?php echo $intensity; ?>" title="<?php echo $monthNames[$mn]; ?> <?php echo $filterYear; ?>: <?php echo $cnt; ?> submission<?php echo $cnt!==1?'s':''; ?>">
-                    <div class="an-hm-cell-lbl"><?php echo $monthNames[$mn]; ?></div>
-                    <div class="an-hm-cell-val"><?php echo $isFuture ? '—' : $cnt; ?></div>
+                <div class="an-hm-cell hm-<?php echo $intensity; ?>" title="<?php echo $monthNames[$mn]; ?> <?php echo (int)$filterYear; ?>: <?php echo $cnt; ?> submission<?php echo $cnt!==1?'s':''; ?>">
+                    <div class="meta"><?php echo $monthNames[$mn]; ?></div>
+                    <div class="an-hm-val"><?php echo $isFuture ? '&mdash;' : $cnt; ?></div>
                 </div>
                 <?php endfor; ?>
             </div>
-            <p style="font-size:0.72rem;color:var(--neutral-400);margin:0.75rem 0 0;text-align:right;">
-                Colour intensity = submission volume &nbsp;·&nbsp; Hover for details
-            </p>
+            <div class="an-legend meta" aria-hidden="true">Fewer <i></i><i class="hm-1"></i><i class="hm-2"></i><i class="hm-3"></i><i class="hm-4"></i> More</div>
         </div>
-    </div>
-
-    <?php if (!$isPrivileged && !empty($timelineRows)): ?>
-    <!-- ══ Personal Timeline ══ -->
-    <div class="an-section">
-        <div class="an-section-head">
-            <h2><i class="fas fa-stream" style="color:var(--primary-400);"></i> My Submission Timeline</h2>
-            <span style="font-size:0.75rem;color:var(--neutral-400);"><?php echo count($timelineRows); ?> reports all time</span>
-        </div>
-        <div class="an-section-body">
-            <div class="an-chart-wrap-sm" style="margin-bottom:1rem;">
-                <canvas id="personalChart"></canvas>
-            </div>
-            <div class="an-timeline" style="max-height:260px;overflow-y:auto;">
-                <?php $timelineRev = array_reverse($timelineRows); ?>
-                <?php foreach ($timelineRev as $i => $tl): ?>
-                <div class="an-tl-item">
-                    <div class="an-tl-dot-col">
-                        <div class="an-tl-dot <?php echo $i===0?'latest':''; ?>"></div>
-                    </div>
-                    <div style="flex:1;">
-                        <div class="an-tl-month">
-                            <?php echo htmlspecialchars($tl['label']); ?>
-                            <?php if ($i===0): ?><span style="font-size:0.65rem;background:var(--success-100);color:var(--success-700);padding:0.1rem 0.4rem;border-radius:9999px;margin-left:0.4rem;font-weight:600;">Latest</span><?php endif; ?>
-                        </div>
-                        <div class="an-tl-stats">
-                            <span class="an-tl-stat"><i class="fas fa-book" style="color:var(--primary-400);"></i> <?php echo number_format($tl['total_copies']); ?> copies</span>
-                            <span class="an-tl-stat"><i class="fas fa-heart" style="color:#ec4899;"></i> <?php echo number_format($tl['souls_won']); ?> souls</span>
-                            <span class="an-tl-stat"><i class="fas fa-handshake" style="color:#0d9488;"></i> <?php echo number_format($tl['new_partners']); ?> partners</span>
-                            <span class="an-tl-stat"><i class="fas fa-church" style="color:#6366f1;"></i> <?php echo number_format($tl['new_churches']); ?> churches</span>
-                        </div>
-                    </div>
-                    <a href="<?php echo BASE_URL; ?>/pages/reports/view.php?id=<?php echo $tl['id']; ?>" style="font-size:0.72rem;color:var(--primary-600);text-decoration:none;white-space:nowrap;">View &rarr;</a>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <?php if (!empty($allTimeStats)): ?>
-            <div style="display:flex;gap:1rem;flex-wrap:wrap;border-top:1px solid var(--neutral-100);margin-top:0.75rem;padding-top:0.75rem;">
-                <div style="font-size:0.78rem;color:var(--neutral-500);">All-time total:</div>
-                <div style="font-size:0.78rem;font-weight:700;color:var(--neutral-800);"><?php echo number_format($allTimeStats['copies']??0); ?> copies</div>
-                <div style="font-size:0.78rem;font-weight:700;color:#ec4899;"><?php echo number_format($allTimeStats['souls']??0); ?> souls</div>
-                <div style="font-size:0.78rem;font-weight:700;color:#0d9488;"><?php echo number_format($allTimeStats['partners']??0); ?> partners</div>
-                <div style="font-size:0.78rem;font-weight:700;color:#6366f1;"><?php echo number_format($allTimeStats['churches']??0); ?> churches</div>
-            </div>
-            <?php endif; ?>
-        </div>
-    </div>
-    <?php elseif (!$isPrivileged && empty($timelineRows)): ?>
-    <div class="an-section">
-        <div class="an-section-body">
-            <div class="an-success-state">
-                <div class="an-ss-icon"><i class="fas fa-file-alt" style="color:var(--neutral-300);"></i></div>
-                <h3>No Reports Yet</h3>
-                <p>Submit your first monthly report to start building your performance timeline.</p>
-                <a href="<?php echo BASE_URL; ?>/pages/reports/create.php" class="modern-button modern-button-primary" style="font-size:0.8rem;margin-top:0.75rem;"><i class="fas fa-plus modern-button-icon"></i>Submit First Report</a>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
+    </section>
 
     <?php if ($isPrivileged): ?>
-    <!-- ══ Compliance Leaderboard ══ -->
-    <div class="an-section">
-        <div class="an-section-head">
-            <h2><i class="fas fa-trophy" style="color:#f59e0b;"></i> Compliance Leaderboard — <?php echo $filterYear; ?></h2>
-            <span style="font-size:0.75rem;color:var(--neutral-400);"><?php echo count($leaderboard); ?> zones · <?php echo $filterYear==(int)date('Y')?(int)date('n'):12; ?> months expected</span>
+    <!-- Region comparison -->
+    <section class="panel" aria-labelledby="an-region-title">
+        <div class="panel-head">
+            <h2 id="an-region-title" class="section-title">Region comparison</h2>
+            <p class="meta"><?php echo (int)$filterYear; ?></p>
         </div>
-        <div class="an-section-body" style="padding:0;">
-            <?php if (empty($leaderboard)): ?>
-            <div style="padding:2rem;text-align:center;color:var(--neutral-400);font-size:0.8rem;">No data for the selected filters.</div>
-            <?php else: ?>
-            <div style="overflow-x:auto;">
-            <table class="an-lb">
-                <thead>
-                    <tr>
-                        <th style="width:2.5rem;">#</th>
-                        <th>Zone</th>
-                        <th>Region</th>
-                        <th>Months</th>
-                        <th style="min-width:130px;">Compliance</th>
-                        <th>Copies</th>
-                        <th>Souls</th>
-                        <th>Last Submit</th>
-                    </tr>
-                </thead>
+        <?php if (empty($regionRows)): ?>
+        <div class="empty-state">
+            <p class="empty-state-title">No data for these filters</p>
+            <p class="empty-state-text">Try another year or clear the region filter.</p>
+        </div>
+        <?php else: ?>
+        <div class="panel-body">
+            <div class="an-chart-sm"><canvas id="regionChart" role="img" aria-label="Copies sponsored and souls won by region"></canvas></div>
+        </div>
+        <div class="table-wrap" style="border-radius:0;border-width:1px 0 0;">
+            <table class="data-table">
+                <thead><tr><th scope="col">Region</th><th scope="col" class="num">Reports</th><th scope="col" class="num">Copies</th><th scope="col" class="num">Souls</th><th scope="col" class="num">Partners</th><th scope="col" class="num">Churches</th></tr></thead>
                 <tbody>
-                <?php foreach ($leaderboard as $i => $lb):
-                    $rateColor = $lb['rate'] >= 80 ? '#10b981' : ($lb['rate'] >= 50 ? '#f59e0b' : '#ef4444');
-                    $rankClass = $i===0?'r1':($i===1?'r2':($i===2?'r3':''));
-                ?>
+                <?php foreach ($regionRows as $rr): ?>
                 <tr>
-                    <td><span class="an-rank <?php echo $rankClass; ?>"><?php echo $i+1; ?></span></td>
-                    <td style="font-weight:600;color:var(--neutral-900);"><?php echo htmlspecialchars($lb['zone']); ?></td>
-                    <td style="font-size:0.72rem;color:var(--neutral-500);"><?php echo htmlspecialchars($lb['region'] ?? '—'); ?></td>
-                    <td style="font-weight:600;"><?php echo (int)$lb['months_submitted']; ?> / <?php echo (int)$lb['expected']; ?></td>
-                    <td>
-                        <div class="an-rate-bar">
-                            <div class="an-rate-track"><div class="an-rate-fill" style="width:<?php echo $lb['rate']; ?>%;background:<?php echo $rateColor; ?>;"></div></div>
-                            <span style="font-size:0.72rem;font-weight:700;color:<?php echo $rateColor; ?>;white-space:nowrap;"><?php echo $lb['rate']; ?>%</span>
-                        </div>
-                    </td>
-                    <td><?php echo number_format($lb['copies']); ?></td>
-                    <td><?php echo number_format($lb['souls']); ?></td>
-                    <td style="font-size:0.72rem;color:var(--neutral-500);"><?php echo $lb['last_submission'] ? date('d M Y', strtotime($lb['last_submission'])) : '—'; ?></td>
+                    <td><?php echo htmlspecialchars($rr['region']); ?></td>
+                    <td class="num"><?php echo number_format($rr['reports']); ?></td>
+                    <td class="num"><?php echo number_format($rr['copies']); ?></td>
+                    <td class="num"><?php echo number_format($rr['souls']); ?></td>
+                    <td class="num"><?php echo number_format($rr['partners']); ?></td>
+                    <td class="num"><?php echo number_format($rr['churches']); ?></td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>
             </table>
-            </div>
-            <?php endif; ?>
         </div>
-    </div>
-
-    <!-- ══ Region Comparison + Top Users ══ -->
-    <div class="an-two">
-        <!-- Region comparison -->
-        <div class="an-section" style="margin-bottom:0;">
-            <div class="an-section-head">
-                <h2><i class="fas fa-map-marked-alt" style="color:#6366f1;"></i> Region Comparison</h2>
-            </div>
-            <div class="an-section-body">
-                <?php if (empty($regionRows)): ?>
-                <p style="font-size:0.8rem;color:var(--neutral-400);text-align:center;padding:1rem 0;">No data for selected filters.</p>
-                <?php else: ?>
-                <div class="an-chart-wrap-sm" style="margin-bottom:1rem;">
-                    <canvas id="regionChart"></canvas>
-                </div>
-                <div class="an-region-grid">
-                    <?php foreach ($regionRows as $rr): ?>
-                    <div class="an-region-card">
-                        <h4><?php echo htmlspecialchars($rr['region']); ?></h4>
-                        <div class="an-region-stat"><span>Reports</span><strong><?php echo number_format($rr['reports']); ?></strong></div>
-                        <div class="an-region-stat"><span>Copies</span><strong><?php echo number_format($rr['copies']); ?></strong></div>
-                        <div class="an-region-stat"><span>Souls Won</span><strong><?php echo number_format($rr['souls']); ?></strong></div>
-                        <div class="an-region-stat"><span>New Partners</span><strong><?php echo number_format($rr['partners']); ?></strong></div>
-                        <div class="an-region-stat"><span>New Churches</span><strong><?php echo number_format($rr['churches']); ?></strong></div>
+        <?php endif; ?>
+    </section>
+    <?php elseif (!empty($timelineRows)): ?>
+    <!-- Personal timeline -->
+    <section class="panel" aria-labelledby="an-tl-title">
+        <div class="panel-head">
+            <h2 id="an-tl-title" class="section-title">Your submissions</h2>
+            <p class="meta"><?php echo count($timelineRows); ?> reports all time</p>
+        </div>
+        <div class="panel-body">
+            <div class="an-chart-sm" style="margin-bottom:var(--spacing-4);"><canvas id="personalChart" role="img" aria-label="Copies sponsored and souls won per report"></canvas></div>
+            <ul class="an-tl">
+                <?php foreach (array_reverse($timelineRows) as $i => $tl): ?>
+                <li>
+                    <div class="an-tl-main">
+                        <div class="an-tl-month">
+                            <?php echo htmlspecialchars($tl['label']); ?>
+                            <?php if ($i === 0): ?><span class="badge badge-success no-dot">Latest</span><?php endif; ?>
+                        </div>
+                        <div class="an-tl-stats">
+                            <span><?php echo number_format($tl['total_copies']); ?> copies</span>
+                            <span><?php echo number_format($tl['souls_won']); ?> souls</span>
+                            <span><?php echo number_format($tl['new_partners']); ?> partners</span>
+                            <span><?php echo number_format($tl['new_churches']); ?> churches</span>
+                        </div>
                     </div>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
-            </div>
+                    <a class="link" href="<?php echo BASE_URL; ?>/pages/reports/view.php?id=<?php echo (int)$tl['id']; ?>">View</a>
+                </li>
+                <?php endforeach; ?>
+            </ul>
         </div>
+        <?php if (!empty($allTimeStats)): ?>
+        <div class="panel-foot an-tl-stats">
+            <span>All time:</span>
+            <strong><?php echo number_format($allTimeStats['copies'] ?? 0); ?> copies</strong>
+            <strong><?php echo number_format($allTimeStats['souls'] ?? 0); ?> souls</strong>
+            <strong><?php echo number_format($allTimeStats['partners'] ?? 0); ?> partners</strong>
+            <strong><?php echo number_format($allTimeStats['churches'] ?? 0); ?> churches</strong>
+        </div>
+        <?php endif; ?>
+    </section>
+    <?php else: ?>
+    <section class="panel">
+        <div class="empty-state">
+            <div class="empty-state-icon"><i class="fas fa-file-alt" aria-hidden="true"></i></div>
+            <p class="empty-state-title">No reports yet</p>
+            <p class="empty-state-text">Submit your first monthly report to start building your timeline.</p>
+            <a href="<?php echo BASE_URL; ?>/pages/reports/create.php" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i> Submit your first report</a>
+        </div>
+    </section>
+    <?php endif; ?>
+</div>
 
-        <!-- Top users -->
-        <div class="an-section" style="margin-bottom:0;">
-            <div class="an-section-head">
-                <h2><i class="fas fa-users" style="color:#0ea5e9;"></i> Top Performers</h2>
-            </div>
-            <div class="an-section-body" style="padding:0;">
-                <?php if (empty($topUsers)): ?>
-                <p style="font-size:0.8rem;color:var(--neutral-400);text-align:center;padding:2rem;">No data for selected filters.</p>
-                <?php else: ?>
-                <table class="an-lb">
-                    <thead><tr><th>#</th><th>Name</th><th>Zone</th><th>Copies</th><th>Souls</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($topUsers as $ti => $tu):
-                        $rc = $ti===0?'r1':($ti===1?'r2':($ti===2?'r3':''));
-                    ?>
-                    <tr>
-                        <td><span class="an-rank <?php echo $rc; ?>"><?php echo $ti+1; ?></span></td>
-                        <td style="font-weight:600;font-size:0.8rem;"><?php echo htmlspecialchars($tu['name'] ?? '—'); ?></td>
-                        <td style="font-size:0.72rem;color:var(--neutral-500);"><?php echo htmlspecialchars($tu['zone'] ?? '—'); ?></td>
-                        <td><?php echo number_format($tu['copies']); ?></td>
-                        <td><?php echo number_format($tu['souls']); ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <?php endif; ?>
-            </div>
-        </div>
+<?php if ($hasRegionFilter && !empty($zoneCompare)): ?>
+<!-- Zone breakdown within region -->
+<section class="panel" aria-labelledby="an-zone-title">
+    <div class="panel-head">
+        <h2 id="an-zone-title" class="section-title">Zones in <?php echo htmlspecialchars($filterRegion); ?></h2>
+        <p class="meta"><?php echo (int)$filterYear; ?></p>
     </div>
+    <div class="panel-body">
+        <div class="an-chart"><canvas id="zoneChart" role="img" aria-label="Copies sponsored and souls won by zone"></canvas></div>
+    </div>
+</section>
+<?php endif; ?>
 
-    <?php if ($filterRegion && !empty($zoneCompare)): ?>
-    <!-- ══ Zone comparison within region ══ -->
-    <div class="an-section">
-        <div class="an-section-head">
-            <h2><i class="fas fa-layer-group" style="color:#0d9488;"></i> Zone Breakdown — <?php echo htmlspecialchars($filterRegion); ?></h2>
-        </div>
-        <div class="an-section-body">
-            <div class="an-chart-wrap">
-                <canvas id="zoneChart"></canvas>
-            </div>
-        </div>
+</div><!-- /.an-stack -->
+
+<?php if ($isPrivileged): ?>
+<!-- Leaderboards (quieter, last) -->
+<section class="section an-page-tables" aria-labelledby="an-lb-title">
+    <div class="section-head">
+        <h2 id="an-lb-title" class="section-title">Zone compliance</h2>
+        <span class="section-meta"><?php echo count($leaderboard); ?> zones &middot; <?php echo $filterYear==(int)date('Y')?(int)date('n'):12; ?> months expected</span>
+    </div>
+    <?php if (empty($leaderboard)): ?>
+    <div class="panel panel-muted"><div class="empty-state"><p class="empty-state-title">No data for these filters</p></div></div>
+    <?php else: ?>
+    <div class="table-wrap" style="max-height:28rem;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col" class="num">#</th>
+                    <th scope="col">Zone</th>
+                    <th scope="col">Region</th>
+                    <th scope="col" class="num">Months</th>
+                    <th scope="col">Compliance</th>
+                    <th scope="col" class="num">Copies</th>
+                    <th scope="col" class="num">Souls</th>
+                    <th scope="col">Last submitted</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($leaderboard as $i => $lb):
+                $rateClass = $lb['rate'] >= 80 ? '' : ($lb['rate'] >= 50 ? 'mid' : 'low');
+            ?>
+            <tr>
+                <td class="num muted"><?php echo $i + 1; ?></td>
+                <td><?php echo htmlspecialchars($lb['zone']); ?></td>
+                <td class="muted"><?php echo htmlspecialchars($lb['region'] ?? '—'); ?></td>
+                <td class="num"><?php echo (int)$lb['months_submitted']; ?> / <?php echo (int)$lb['expected']; ?></td>
+                <td>
+                    <div class="an-rate <?php echo $rateClass; ?>">
+                        <div class="an-rate-track"><div class="an-rate-fill" style="width:<?php echo (int)$lb['rate']; ?>%;"></div></div>
+                        <span class="an-rate-val"><?php echo (int)$lb['rate']; ?>%</span>
+                    </div>
+                </td>
+                <td class="num"><?php echo number_format($lb['copies']); ?></td>
+                <td class="num"><?php echo number_format($lb['souls']); ?></td>
+                <td><span class="meta"><?php echo $lb['last_submission'] ? htmlspecialchars(date('d M Y', strtotime($lb['last_submission']))) : '—'; ?></span></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
     <?php endif; ?>
-    <?php endif; /* isPrivileged */ ?>
+</section>
 
-</div><!-- /an-page -->
+<section class="section an-page-tables" aria-labelledby="an-top-title">
+    <div class="section-head">
+        <h2 id="an-top-title" class="section-title">Top performers</h2>
+        <span class="section-meta">By copies sponsored &middot; top 10</span>
+    </div>
+    <?php if (empty($topUsers)): ?>
+    <div class="panel panel-muted"><div class="empty-state"><p class="empty-state-title">No data for these filters</p></div></div>
+    <?php else: ?>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th scope="col" class="num">#</th><th scope="col">Name</th><th scope="col">Zone</th><th scope="col" class="num">Copies</th><th scope="col" class="num">Souls</th></tr></thead>
+            <tbody>
+            <?php foreach ($topUsers as $ti => $tu): ?>
+            <tr>
+                <td class="num muted"><?php echo $ti + 1; ?></td>
+                <td><?php echo htmlspecialchars($tu['name'] ?? '—'); ?></td>
+                <td class="muted"><?php echo htmlspecialchars($tu['zone'] ?? '—'); ?></td>
+                <td class="num"><?php echo number_format($tu['copies']); ?></td>
+                <td class="num"><?php echo number_format($tu['souls']); ?></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+</section>
+
+<?php else: ?>
+<!-- Streak + achievements (quieter, last) -->
+<?php
+$allBadgeDefs = [
+    ['icon'=>'fa-star',         'label'=>'First Report',    'desc'=>'Submit your first report'],
+    ['icon'=>'fa-seedling',     'label'=>'Getting Started', 'desc'=>'3 reports submitted'],
+    ['icon'=>'fa-medal',        'label'=>'Half Year',       'desc'=>'6 months of reporting'],
+    ['icon'=>'fa-trophy',       'label'=>'Full Year',       'desc'=>'12 months of reporting'],
+    ['icon'=>'fa-fire',         'label'=>'On Fire',         'desc'=>'3-month streak'],
+    ['icon'=>'fa-fire-alt',     'label'=>'Unstoppable',     'desc'=>'6-month streak'],
+    ['icon'=>'fa-crown',        'label'=>'Legendary',       'desc'=>'12-month streak'],
+    ['icon'=>'fa-heart',        'label'=>'Soul Winner',     'desc'=>'100+ souls won'],
+    ['icon'=>'fa-hands-helping','label'=>'Soul Champion',   'desc'=>'500+ souls won'],
+    ['icon'=>'fa-church',       'label'=>'Church Planter',  'desc'=>'5+ new churches'],
+    ['icon'=>'fa-handshake',    'label'=>'Partner Builder', 'desc'=>'50+ new partners'],
+];
+$earnedLabels = array_column($badges, 'label');
+?>
+<section class="section" aria-labelledby="an-ach-title">
+    <div class="section-head">
+        <h2 id="an-ach-title" class="section-title">Streak &amp; achievements</h2>
+        <span class="section-meta"><?php echo count($badges); ?> of <?php echo count($allBadgeDefs); ?> earned</span>
+    </div>
+    <div class="panel panel-muted">
+        <div class="panel-body an-achieve">
+            <div class="an-streak">
+                <span class="meta">Submission streak</span>
+                <span class="an-streak-value"><?php echo (int)$streakCount; ?> month<?php echo $streakCount !== 1 ? 's' : ''; ?></span>
+                <span class="muted" style="font-size:var(--text-sm);">
+                    <?php if ($streakCount === 0): ?>Submit this month's report to start a streak.
+                    <?php elseif ($streakCount < 3): ?>Keep submitting every month to build your streak.
+                    <?php elseif ($streakCount < 6): ?><?php echo 6 - $streakCount; ?> more months to earn Unstoppable.
+                    <?php elseif ($streakCount < 12): ?><?php echo 12 - $streakCount; ?> more months to Legendary.
+                    <?php else: ?>You've kept a <?php echo (int)$streakCount; ?>-month streak.
+                    <?php endif; ?>
+                </span>
+                <?php if ($streakCount === 0): ?>
+                <a href="<?php echo BASE_URL; ?>/pages/reports/create.php" class="link">Submit report</a>
+                <?php endif; ?>
+            </div>
+            <ul class="an-badges">
+                <?php foreach ($allBadgeDefs as $bd): $earned = in_array($bd['label'], $earnedLabels, true); ?>
+                <li class="an-badge <?php echo $earned ? 'is-earned' : 'is-locked'; ?>">
+                    <i class="fas <?php echo htmlspecialchars($bd['icon']); ?>" aria-hidden="true"></i>
+                    <div>
+                        <?php echo htmlspecialchars($bd['label']); ?>
+                        <small><?php echo htmlspecialchars($bd['desc']); ?></small>
+                    </div>
+                    <span class="an-badge-state">
+                        <i class="fas <?php echo $earned ? 'fa-check' : 'fa-lock'; ?>" aria-hidden="true"></i>
+                        <span class="sr-only"><?php echo $earned ? 'Earned' : 'Locked'; ?></span>
+                    </span>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    </div>
+</section>
+<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 (function() {
-var trendLabels   = <?php echo json_encode($trendLabels); ?>;
-var trendCopies   = <?php echo json_encode($trendCopies); ?>;
-var trendSouls    = <?php echo json_encode($trendSouls); ?>;
-var trendPartners = <?php echo json_encode($trendPartners); ?>;
-var trendChurches = <?php echo json_encode($trendChurches); ?>;
+if (typeof Chart === 'undefined') return;
 
-var chartColors = {
-    copies:   {border:'#0ea5e9', bg:'rgba(14,165,233,0.10)'},
-    souls:    {border:'#ec4899', bg:'rgba(236,72,153,0.10)'},
-    partners: {border:'#0d9488', bg:'rgba(13,148,136,0.10)'},
-    churches: {border:'#6366f1', bg:'rgba(99,102,241,0.10)'}
+// Palette from design tokens
+var css = getComputedStyle(document.documentElement);
+function tok(name, fallback) { return (css.getPropertyValue(name) || '').trim() || fallback || ''; }
+function alpha(hex, a) {
+    var h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map(function(c) { return c + c; }).join('');
+    var n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+var C = {
+    ink: tok('--ink'),
+    slate: tok('--slate'),
+    signal: tok('--signal'),
+    success: tok('--success-600'),
+    warning: tok('--warning-500'),
+    grid: tok('--neutral-200'),
+    tick: tok('--neutral-600')
 };
+var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+Chart.defaults.font.family = tok('--font-sans', 'Inter, system-ui, sans-serif');
+Chart.defaults.font.size = 11;
+Chart.defaults.color = C.tick;
+Chart.defaults.borderColor = C.grid;
+if (reduceMotion) Chart.defaults.animation = false;
+Chart.defaults.plugins.tooltip.backgroundColor = C.ink;
+Chart.defaults.plugins.legend.labels.boxWidth = 10;
+Chart.defaults.plugins.legend.labels.boxHeight = 10;
+function kfmt(v) { var a = Math.abs(v); return a >= 1e6 ? +(v / 1e6).toFixed(1) + 'M' : a >= 1e3 ? +(v / 1e3).toFixed(1) + 'k' : v; }
+function barSet(label, data, color, axis) {
+    return { label: label, data: data, backgroundColor: color, borderWidth: 0, borderRadius: 3, maxBarThickness: 28, yAxisID: axis || 'y' };
+}
+
+var trendLabels   = <?php echo json_encode($trendLabels, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
 var metricData = {
-    copies:   {label:'Total Copies Sponsored',  data:trendCopies},
-    souls:    {label:'Souls Won',                data:trendSouls},
-    partners: {label:'New Partners',             data:trendPartners},
-    churches: {label:'New Churches',             data:trendChurches}
+    copies:   {label:'Copies sponsored', data:<?php echo json_encode($trendCopies); ?>,   color:C.signal},
+    souls:    {label:'Souls won',        data:<?php echo json_encode($trendSouls); ?>,    color:C.ink},
+    partners: {label:'New partners',     data:<?php echo json_encode($trendPartners); ?>, color:C.success},
+    churches: {label:'New churches',     data:<?php echo json_encode($trendChurches); ?>, color:C.warning}
 };
 
-var activeMetric = 'copies';
 var trendCtx = document.getElementById('trendChart');
 var trendChart = null;
 if (trendCtx) {
     trendChart = new Chart(trendCtx, {
         type: 'line',
-        data: {
-            labels: trendLabels,
-            datasets: [{
-                label: 'Total Copies Sponsored',
-                data:  trendCopies,
-                borderColor: chartColors.copies.border,
-                backgroundColor: chartColors.copies.bg,
-                tension: 0.35,
-                fill: true,
-                pointRadius: 4,
-                pointHoverRadius: 6,
-                borderWidth: 2.5
-            }]
-        },
+        data: { labels: trendLabels, datasets: [{
+            label: metricData.copies.label, data: metricData.copies.data,
+            borderColor: C.signal, backgroundColor: alpha(C.signal, 0.08),
+            tension: 0.3, fill: true, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: C.signal, borderWidth: 2
+        }]},
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false }, tooltip: { callbacks: {
                 label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString(); }
             }}},
             scales: {
-                x: { grid: { display:false }, ticks: { font:{size:11} } },
-                y: { beginAtZero:true, grid: { color:'rgba(0,0,0,0.04)' }, ticks: { font:{size:11}, callback: function(v){ return v>=1000?(v/1000).toFixed(1)+'k':v; }}}
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, border: { display: false }, ticks: { callback: kfmt } }
             }
         }
     });
 }
 
 window.switchChart = function(metric) {
-    if (!trendChart) return;
-    activeMetric = metric;
-    var m = metricData[metric];
-    var c = chartColors[metric];
-    trendChart.data.datasets[0].label = m.label;
-    trendChart.data.datasets[0].data  = m.data;
-    trendChart.data.datasets[0].borderColor = c.border;
-    trendChart.data.datasets[0].backgroundColor = c.bg;
-    trendChart.update('active');
+    if (!trendChart || !metricData[metric]) return;
+    var m = metricData[metric], ds = trendChart.data.datasets[0];
+    ds.label = m.label; ds.data = m.data;
+    ds.borderColor = m.color; ds.pointBackgroundColor = m.color; ds.backgroundColor = alpha(m.color, 0.08);
+    trendChart.update();
     document.querySelectorAll('.an-chart-btn').forEach(function(b) {
-        b.classList.toggle('active', b.dataset.metric === metric);
+        var on = b.dataset.metric === metric;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
 };
 
@@ -884,36 +844,17 @@ var personalCtx = document.getElementById('personalChart');
 if (personalCtx) {
     new Chart(personalCtx, {
         type: 'bar',
-        data: {
-            labels: <?php echo json_encode($tlLabels); ?>,
-            datasets: [
-                {
-                    label: 'Copies Sponsored',
-                    data:  <?php echo json_encode($tlCopies); ?>,
-                    backgroundColor: 'rgba(14,165,233,0.6)',
-                    borderColor: '#0ea5e9',
-                    borderWidth: 1,
-                    borderRadius: 4,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Souls Won',
-                    data:  <?php echo json_encode($tlSouls); ?>,
-                    backgroundColor: 'rgba(236,72,153,0.6)',
-                    borderColor: '#ec4899',
-                    borderWidth: 1,
-                    borderRadius: 4,
-                    yAxisID: 'y1'
-                }
-            ]
-        },
+        data: { labels: <?php echo json_encode($tlLabels, JSON_HEX_TAG | JSON_HEX_AMP); ?>, datasets: [
+            barSet('Copies sponsored', <?php echo json_encode($tlCopies); ?>, C.signal, 'y'),
+            barSet('Souls won', <?php echo json_encode($tlSouls); ?>, C.slate, 'y1')
+        ]},
         options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position:'top', labels:{font:{size:11}} } },
+            plugins: { legend: { position: 'top', align: 'end' } },
             scales: {
-                x: { grid:{display:false}, ticks:{font:{size:10}} },
-                y:  { position:'left',  beginAtZero:true, grid:{color:'rgba(0,0,0,0.04)'}, ticks:{font:{size:10}} },
-                y1: { position:'right', beginAtZero:true, grid:{display:false},             ticks:{font:{size:10}} }
+                x:  { grid: { display: false } },
+                y:  { position: 'left',  beginAtZero: true, border: { display: false }, ticks: { callback: kfmt } },
+                y1: { position: 'right', beginAtZero: true, grid: { display: false }, border: { display: false }, ticks: { callback: kfmt } }
             }
         }
     });
@@ -929,19 +870,16 @@ var regionCtx = document.getElementById('regionChart');
 if (regionCtx) {
     new Chart(regionCtx, {
         type: 'bar',
-        data: {
-            labels: <?php echo json_encode($rcLabels); ?>,
-            datasets: [
-                { label:'Copies Sponsored', data:<?php echo json_encode($rcCopies); ?>, backgroundColor:'rgba(14,165,233,0.65)', borderColor:'#0ea5e9', borderWidth:1, borderRadius:4 },
-                { label:'Souls Won',        data:<?php echo json_encode($rcSouls); ?>,  backgroundColor:'rgba(236,72,153,0.65)', borderColor:'#ec4899', borderWidth:1, borderRadius:4 }
-            ]
-        },
+        data: { labels: <?php echo json_encode($rcLabels, JSON_HEX_TAG | JSON_HEX_AMP); ?>, datasets: [
+            barSet('Copies sponsored', <?php echo json_encode($rcCopies); ?>, C.signal),
+            barSet('Souls won', <?php echo json_encode($rcSouls); ?>, C.slate)
+        ]},
         options: {
-            responsive:true, maintainAspectRatio:false,
-            plugins:{ legend:{ position:'top', labels:{font:{size:11}} } },
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', align: 'end' } },
             scales: {
-                x:{ grid:{display:false}, ticks:{font:{size:10}} },
-                y:{ beginAtZero:true, grid:{color:'rgba(0,0,0,0.04)'}, ticks:{font:{size:10}, callback:function(v){return v>=1000?(v/1000).toFixed(1)+'k':v;}} }
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, border: { display: false }, ticks: { callback: kfmt } }
             }
         }
     });
@@ -957,25 +895,21 @@ var zoneCtx = document.getElementById('zoneChart');
 if (zoneCtx) {
     new Chart(zoneCtx, {
         type: 'bar',
-        data: {
-            labels: <?php echo json_encode($zcLabels); ?>,
-            datasets: [
-                { label:'Copies Sponsored', data:<?php echo json_encode($zcCopies); ?>, backgroundColor:'rgba(99,102,241,0.65)', borderColor:'#6366f1', borderWidth:1, borderRadius:4 },
-                { label:'Souls Won',        data:<?php echo json_encode($zcSouls); ?>,  backgroundColor:'rgba(13,148,136,0.65)', borderColor:'#0d9488', borderWidth:1, borderRadius:4 }
-            ]
-        },
+        data: { labels: <?php echo json_encode($zcLabels, JSON_HEX_TAG | JSON_HEX_AMP); ?>, datasets: [
+            barSet('Copies sponsored', <?php echo json_encode($zcCopies); ?>, C.signal),
+            barSet('Souls won', <?php echo json_encode($zcSouls); ?>, C.slate)
+        ]},
         options: {
-            responsive:true, maintainAspectRatio:false,
-            plugins:{ legend:{position:'top', labels:{font:{size:11}}} },
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', align: 'end' } },
             scales: {
-                x:{ grid:{display:false}, ticks:{font:{size:9},maxRotation:35} },
-                y:{ beginAtZero:true, grid:{color:'rgba(0,0,0,0.04)'}, ticks:{font:{size:10}, callback:function(v){return v>=1000?(v/1000).toFixed(1)+'k':v;}} }
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 35 } },
+                y: { beginAtZero: true, border: { display: false }, ticks: { callback: kfmt } }
             }
         }
     });
 }
 <?php endif; ?>
-
 })();
 </script>
 

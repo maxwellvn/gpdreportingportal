@@ -11,6 +11,66 @@
  */
 
 /* ═══════════════════════════════════════════════
+   0. CSRF: attach the session token to every POST form and same-origin fetch.
+      config/config.php rejects any POST without it.
+   ═══════════════════════════════════════════════ */
+(function csrfGuard() {
+    function token() { return window.CSRF_TOKEN || ''; }
+
+    function addTokenField(form) {
+        if (!form || (form.method || '').toLowerCase() !== 'post' || !token()) return;
+        var field = form.querySelector('input[name="csrf_token"]');
+        if (!field) {
+            field = document.createElement('input');
+            field.type = 'hidden';
+            field.name = 'csrf_token';
+            form.appendChild(field);
+        }
+        field.value = token();
+    }
+
+    // Normal submits (capture phase runs before page handlers serialise the form)
+    document.addEventListener('submit', function(e) { addTokenField(e.target); }, true);
+
+    // form.submit() skips the submit event, so patch it too
+    var nativeSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function() {
+        addTokenField(this);
+        return nativeSubmit.call(this);
+    };
+
+    // fetch(): add the header on same-origin, state-changing requests
+    var nativeFetch = window.fetch;
+    if (nativeFetch) {
+        window.fetch = function(input, init) {
+            init = init || {};
+            var method = (init.method || (input && input.method) || 'GET').toUpperCase();
+            var url = typeof input === 'string' ? input : (input && input.url) || '';
+            var sameOrigin = new URL(url, window.location.href).origin === window.location.origin;
+            if (sameOrigin && method !== 'GET' && method !== 'HEAD' && token()) {
+                var headers = new Headers(init.headers || (input && input.headers) || {});
+                headers.set('X-CSRF-Token', token());
+                init = Object.assign({}, init, { headers: headers });
+            }
+            return nativeFetch.call(this, input, init);
+        };
+    }
+})();
+
+/* Close the header "More" menu on outside click or Escape */
+document.addEventListener('click', function(e) {
+    document.querySelectorAll('details.nh-more[open]').forEach(function(d) {
+        if (!d.contains(e.target)) d.removeAttribute('open');
+    });
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('details.nh-more[open]').forEach(function(d) { d.removeAttribute('open'); });
+    var dd = document.getElementById('profileDropdown');
+    if (dd) dd.classList.add('hidden');
+});
+
+/* ═══════════════════════════════════════════════
    1. GLOBAL STATE MANAGER
    ═══════════════════════════════════════════════ */
 window.AppState = (function() {
@@ -346,7 +406,9 @@ window.kcOpenPopup = function(options) {
 // Listen for KingsChat auth completion from popup
 window.addEventListener('message', function(e) {
     try {
-        if (!e || !e.data || typeof e.data !== 'object') return;
+        // Only trust messages from our own kc_callback.php popup
+        if (!e || e.origin !== window.location.origin) return;
+        if (!e.data || typeof e.data !== 'object') return;
         if (e.data.type !== 'KC_AUTH') return;
         var kcUserId = e.data.kcUserId || '';
         var mode = e.data.mode || 'login';

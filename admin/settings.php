@@ -103,69 +103,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require_once '../layouts/header.php';
 ?>
 
-<style>
-.st-page { max-width: 800px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
-.st-title { font-size:1.125rem; font-weight:700; color:var(--neutral-900); margin:0 0 1.5rem; }
-.st-section { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; margin-bottom:1.25rem; overflow:hidden; }
-.st-section-head { padding:0.85rem 1.25rem; border-bottom:1px solid var(--neutral-200); }
-.st-section-head h2 { font-size:0.875rem; font-weight:600; color:var(--neutral-900); margin:0; text-transform:uppercase; letter-spacing:0.04em; }
-.st-section-body { padding:1.25rem; }
-.st-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
-.st-table th { padding:0.65rem 1rem; text-align:left; font-size:0.7rem; font-weight:600; color:var(--neutral-500); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid var(--neutral-200); }
-.st-table td { padding:0.75rem 1rem; border-bottom:1px solid var(--neutral-100); color:var(--neutral-800); font-family:monospace; font-size:0.8rem; }
-.st-table tr:last-child td { border-bottom:none; }
-</style>
+<?php
+$flashSuccess = $_SESSION['success'] ?? null;
+$flashError = $_SESSION['error'] ?? null;
+unset($_SESSION['success'], $_SESSION['error']);
+$stmt = $conn->query("SELECT * FROM system_settings ORDER BY setting_key");
+$settings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+?>
 
-<div class="st-page">
-    <h1 class="st-title">System Settings</h1>
-
-    <?php if (isset($_SESSION['error'])): ?>
-        <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?php echo addslashes($_SESSION['error']); ?>', 'error', 5000); });</script>
-        <?php unset($_SESSION['error']); ?>
-    <?php endif; ?>
-    <?php if (isset($_SESSION['success'])): ?>
-        <script>document.addEventListener('DOMContentLoaded', function() { showAlert('Success', '<?php echo addslashes($_SESSION['success']); ?>', 'success'); });</script>
-        <?php unset($_SESSION['success']); ?>
-    <?php endif; ?>
-
-    <div class="st-section">
-        <div class="st-section-head"><h2>Application Settings</h2></div>
-        <div class="st-section-body">
-            <p style="font-size:0.875rem;color:var(--neutral-500);margin:0;">No settings configured. Settings can be added here as needed.</p>
-        </div>
-    </div>
-
-    <div class="st-section">
-        <div class="st-section-head"><h2>Current Settings (Debug)</h2></div>
-        <div style="overflow-x:auto;">
-            <table class="st-table">
-                <thead><tr><th>Key</th><th>Value</th><th>Last Updated</th></tr></thead>
-                <tbody>
-                    <?php
-                    $stmt = $conn->query("SELECT * FROM system_settings ORDER BY setting_key");
-                    $settings = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    foreach ($settings as $setting): ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars($setting['setting_key']); ?></td>
-                        <td><?php echo htmlspecialchars($setting['setting_value']); ?></td>
-                        <td><?php echo htmlspecialchars($setting['updated_at']); ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <?php if (empty($settings)): ?>
-                    <tr><td colspan="3" style="color:var(--neutral-400);font-family:inherit;">No settings records found.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-        <div style="padding:1rem 1.25rem;border-top:1px solid var(--neutral-200);">
-            <form method="POST" action="reset_settings.php" onsubmit="return confirm('Are you sure you want to reset all settings to default values?');">
-                <button type="submit" class="modern-button modern-button-danger" style="font-size:0.8125rem;"><i class="fas fa-undo modern-button-icon"></i> Reset to Default Values</button>
-            </form>
-        </div>
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="dashboard.php">Admin</a><span class="sep" aria-hidden="true">›</span><span aria-current="page">Settings</span></nav>
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Settings</h1>
+        <p class="page-sub">System-wide configuration for the portal.</p>
     </div>
 </div>
 
-<?php
-// Close main tag from header
-echo '</main></body></html>';
-?>
+<?php if ($flashSuccess): ?>
+<div class="alert alert-success" role="status"><i class="fas fa-check-circle" aria-hidden="true"></i><div><?php echo htmlspecialchars($flashSuccess); ?></div></div>
+<?php endif; ?>
+<?php if ($flashError): ?>
+<div class="alert alert-danger" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div><?php echo htmlspecialchars($flashError); ?></div></div>
+<?php endif; ?>
+
+<div style="display:grid;gap:var(--spacing-6);max-width:56rem;">
+    <section class="panel">
+        <div class="panel-head">Application settings</div>
+        <div class="panel-body">
+            <p class="muted">No settings are configured yet. New options will appear here.</p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <span>Stored values</span>
+            <span class="meta"><?php echo count($settings); ?> keys</span>
+        </div>
+        <?php if (empty($settings)): ?>
+        <div class="empty-state">
+            <div class="empty-state-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
+            <div class="empty-state-title">No stored settings</div>
+            <div class="empty-state-text">The system_settings table is empty.</div>
+        </div>
+        <?php else: ?>
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead><tr><th scope="col">Key</th><th scope="col">Value</th><th scope="col">Last updated</th></tr></thead>
+                <tbody>
+                    <?php foreach ($settings as $setting): ?>
+                    <tr>
+                        <td style="font-family:var(--font-mono);font-size:var(--text-xs);"><?php echo htmlspecialchars($setting['setting_key']); ?></td>
+                        <td style="font-family:var(--font-mono);font-size:var(--text-xs);overflow-wrap:anywhere;"><?php echo htmlspecialchars((string)$setting['setting_value']); ?></td>
+                        <td class="meta" style="white-space:nowrap;"><?php echo htmlspecialchars($setting['updated_at']); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </section>
+
+    <section class="panel" style="border-color:var(--danger-200);" aria-labelledby="danger-zone-title">
+        <div class="panel-head" id="danger-zone-title" style="border-color:var(--danger-200);">Danger zone</div>
+        <div class="panel-body" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--spacing-4);">
+            <div>
+                <div style="font-weight:500;">Reset settings</div>
+                <p class="muted" style="font-size:var(--text-sm);">Restore every setting to its default value. This cannot be undone.</p>
+            </div>
+            <form method="POST" action="reset_settings.php" onsubmit="return confirm('Are you sure you want to reset all settings to default values?');">
+                <button type="submit" class="btn btn-danger"><i class="fas fa-rotate-left" aria-hidden="true"></i> Reset settings</button>
+            </form>
+        </div>
+    </section>
+</div>
+
+<?php require_once '../layouts/footer.php'; ?>

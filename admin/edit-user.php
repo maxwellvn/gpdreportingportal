@@ -46,9 +46,12 @@ try {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $role = $_POST['role'] ?? 'user';
+        $role = $_POST['role'] ?? ROLE_RZM;
         $zone = trim($_POST['zone'] ?? '');
-        $zoneRequired = ($role === ROLE_USER);
+        $zoneRequired = ($role === ROLE_RZM);
+        if (!in_array($role, [ROLE_ADMIN, ROLE_ADMIN_MANAGER, ROLE_RZM], true)) {
+            throw new Exception('Invalid role');
+        }
 
         if (empty($_POST['username']) || empty($_POST['name']) || empty($_POST['region']) || ($zoneRequired && empty($zone))) {
             throw new Exception($zoneRequired ? 'Username, name, region and zone are required' : 'Username, name and region are required');
@@ -99,79 +102,74 @@ require_once '../layouts/header.php';
 ?>
 
 <style>
-.eu-page { max-width: 560px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
-.eu-topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; }
-.eu-topbar h1 { font-size:1.125rem; font-weight:700; color:var(--neutral-900); margin:0; }
-.eu-card { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; overflow:hidden; }
-.eu-card-head { padding:0.85rem 1.25rem; border-bottom:1px solid var(--neutral-200); }
-.eu-card-head h2 { font-size:0.875rem; font-weight:600; color:var(--neutral-900); margin:0; text-transform:uppercase; letter-spacing:0.04em; }
-.eu-card-body { padding:1.25rem; }
-.eu-check-row { display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem; }
-.eu-check-row input { width:1rem; height:1rem; accent-color:var(--primary-600); }
-.eu-check-row label { font-size:0.85rem; color:var(--neutral-700); }
+.uf-check { display: flex; align-items: center; gap: var(--spacing-2); grid-column: 1 / -1; margin-bottom: var(--spacing-5); font-size: var(--text-sm); color: var(--neutral-800); }
 </style>
 
-<div class="eu-page">
-    <div class="eu-topbar">
-        <h1>Edit User: <span style="color:var(--primary-600);"><?php echo htmlspecialchars($user['username']); ?></span></h1>
-        <a href="users.php" class="modern-button modern-button-secondary" style="font-size:0.8125rem;"><i class="fas fa-arrow-left modern-button-icon"></i> Back</a>
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="users.php">People</a><span class="sep" aria-hidden="true">›</span><span aria-current="page">Edit</span></nav>
+<div class="page-head">
+    <div>
+        <div class="page-eyebrow"><?php echo htmlspecialchars($user['username']); ?></div>
+        <h1 class="page-title"><?php echo htmlspecialchars(($user['name'] ?? '') !== '' ? $user['name'] : $user['username']); ?></h1>
     </div>
+</div>
 
-    <?php if ($error): ?>
-    <div style="background:var(--danger-50);border:1px solid var(--danger-200);color:var(--danger-700);padding:0.75rem 1rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.85rem;"><?php echo htmlspecialchars($error); ?></div>
-    <?php endif; ?>
-    <?php if ($success): ?>
-    <div style="background:var(--success-50);border:1px solid var(--success-200);color:var(--success-700);padding:0.75rem 1rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.85rem;"><?php echo htmlspecialchars($success); ?></div>
-    <?php endif; ?>
+<div class="panel" style="max-width:48rem;">
+    <div class="panel-body">
+        <?php if ($error): ?>
+        <div class="alert alert-danger" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div><?php echo htmlspecialchars($error); ?></div></div>
+        <?php endif; ?>
+        <?php if ($success): ?>
+        <div class="alert alert-success" role="status"><i class="fas fa-check-circle" aria-hidden="true"></i><div><?php echo htmlspecialchars($success); ?></div></div>
+        <?php endif; ?>
 
-    <div class="eu-card">
-        <div class="eu-card-head"><h2>User Details</h2></div>
-        <div class="eu-card-body">
-            <form method="POST" class="space-y-4">
-                <div class="modern-form-group">
-                    <label for="username" class="modern-form-label">Username</label>
-                    <input type="text" name="username" id="username" required class="modern-form-input" value="<?php echo htmlspecialchars($user['username']); ?>">
+        <form method="POST">
+            <div class="form-grid">
+                <div class="field">
+                    <label for="name" class="field-label">Full name</label>
+                    <input type="text" name="name" id="name" required class="input" value="<?php echo htmlspecialchars((string)$user['name']); ?>">
                 </div>
-                <div class="modern-form-group">
-                    <label for="name" class="modern-form-label">Full Name</label>
-                    <input type="text" name="name" id="name" required class="modern-form-input" value="<?php echo htmlspecialchars($user['name']); ?>">
+                <div class="field">
+                    <label for="username" class="field-label">Username</label>
+                    <input type="text" name="username" id="username" required class="input" value="<?php echo htmlspecialchars($user['username']); ?>">
                 </div>
-                <div class="modern-form-group">
-                    <label for="password" class="modern-form-label">New Password <span style="color:var(--neutral-400);font-weight:400;">(leave blank to keep current)</span></label>
-                    <input type="password" name="password" id="password" class="modern-form-input">
+                <div class="field">
+                    <label for="password" class="field-label">New password <span class="field-optional">(optional)</span></label>
+                    <input type="password" name="password" id="password" class="input" autocomplete="new-password" aria-describedby="password-help">
+                    <p class="field-help" id="password-help">Leave blank to keep the current password.</p>
                 </div>
-                <div class="modern-form-group">
-                    <label for="role" class="modern-form-label">Role</label>
-                    <select name="role" id="role" required class="modern-form-input">
-                        <option value="user" <?php echo $user['role'] === 'user' ? 'selected' : ''; ?>>RZM</option>
+                <div class="field">
+                    <label for="role" class="field-label">Role</label>
+                    <select name="role" id="role" required class="input">
+                        <option value="rzm" <?php echo $user['role'] === ROLE_RZM ? 'selected' : ''; ?>>RZM</option>
                         <option value="admin-manager" <?php echo $user['role'] === 'admin-manager' ? 'selected' : ''; ?>>Admin Manager</option>
-                        <option value="admin" <?php echo $user['role'] === 'admin' ? 'selected' : ''; ?>>Admin</option>
+                        <option value="admin" <?php echo $user['role'] === 'admin' ? 'selected' : ''; ?>>Administrator</option>
                     </select>
                 </div>
-                <div class="modern-form-group">
-                    <label for="region" class="modern-form-label">Region</label>
-                    <select name="region" id="region" required class="modern-form-input" onchange="updateZones()">
-                        <option value="">Select Region</option>
+                <div class="field">
+                    <label for="region" class="field-label">Region</label>
+                    <select name="region" id="region" required class="input" onchange="updateZones()">
+                        <option value="">Select region</option>
                         <?php foreach ($REGIONS_ZONES as $region => $zones): ?>
                             <option value="<?php echo htmlspecialchars($region); ?>" <?php echo $user['region'] === $region ? 'selected' : ''; ?>><?php echo htmlspecialchars($region); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="modern-form-group" id="zoneGroup">
-                    <label for="zone" class="modern-form-label">Zone</label>
-                    <select name="zone" id="zone" required class="modern-form-input">
-                        <option value="">Select Zone</option>
+                <div class="field" id="zoneGroup">
+                    <label for="zone" class="field-label">Zone</label>
+                    <select name="zone" id="zone" required class="input">
+                        <option value="">Select zone</option>
                     </select>
                 </div>
-                <div class="eu-check-row">
+                <label class="uf-check" for="active">
                     <input type="checkbox" name="active" id="active" <?php echo isset($user['active']) && $user['active'] ? 'checked' : ''; ?>>
-                    <label for="active">Active (user can log in)</label>
-                </div>
-                <div style="padding-top:0.75rem;border-top:1px solid var(--neutral-200);margin-top:0.5rem;">
-                    <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;" data-loading-text="Saving…"><i class="fas fa-save modern-button-icon"></i> Save Changes</button>
-                </div>
-            </form>
-        </div>
+                    Active (can sign in)
+                </label>
+            </div>
+            <div class="form-actions">
+                <a href="users.php" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary" data-loading-text="Saving…">Save changes</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -182,10 +180,10 @@ function updateZones() {
     const regionSelect = document.getElementById('region');
     const zoneSelect = document.getElementById('zone');
     const selectedRegion = regionSelect.value;
-    const currentZone = '<?php echo $user['zone'] ?? ''; ?>';
+    const currentZone = <?php echo json_encode((string)($user['zone'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     
     // Clear current options
-    zoneSelect.innerHTML = '<option value="">Select Zone</option>';
+    zoneSelect.innerHTML = '<option value="">Select zone</option>';
     
     // Add new options if a region is selected
     if (selectedRegion && window.regionsZones?.[selectedRegion]) {
@@ -210,7 +208,7 @@ function toggleZoneRequirement() {
     const roleSelect = document.getElementById('role');
     const zoneGroup = document.getElementById('zoneGroup');
     const zoneSelect = document.getElementById('zone');
-    const requiresZone = roleSelect.value === 'user';
+    const requiresZone = roleSelect.value === 'rzm';
 
     zoneGroup.style.display = requiresZone ? 'block' : 'none';
     zoneSelect.required = requiresZone;
@@ -223,7 +221,7 @@ function initializeForm() {
     // Don't rebuild the region dropdown - it's already correctly populated by PHP
     // Just ensure the current region is selected
     const regionSelect = document.getElementById('region');
-    const currentRegion = '<?php echo $user['region'] ?? ''; ?>';
+    const currentRegion = <?php echo json_encode((string)($user['region'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
     // Set the selected region value
     if (currentRegion) {
@@ -241,7 +239,4 @@ document.getElementById('role').addEventListener('change', toggleZoneRequirement
 initializeForm();
 </script>
 
-<?php
-// Close main tag from header
-echo '</main></body></html>';
-?>
+<?php require_once '../layouts/footer.php'; ?>

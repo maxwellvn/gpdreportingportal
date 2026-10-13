@@ -76,9 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // If user is admin, they can update role, region, and zone
         if (Auth::isAdmin() && isset($_POST['update_role'])) {
-            $role = $_POST['role'];
-            $region = $_POST['region'];
-            $zone = $_POST['zone'];
+            $role = $_POST['role'] ?? '';
+            $region = trim($_POST['region'] ?? '');
+            $zone = trim($_POST['zone'] ?? '');
+            if (!in_array($role, [ROLE_ADMIN, ROLE_ADMIN_MANAGER, ROLE_RZM], true)) {
+                throw new Exception("Invalid role");
+            }
             
             $roleStmt = $conn->prepare("UPDATE users SET role = ?, region = ?, zone = ? WHERE id = ?");
             $roleStmt->execute([$role, $region, $zone, $_SESSION['user_id']]);
@@ -107,217 +110,192 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require_once 'layouts/header.php';
 ?>
 
+<?php
+$roleLabels = ['admin' => 'Administrator', 'admin-manager' => 'Admin Manager', ROLE_RZM => 'RZM'];
+$roleLabel  = $roleLabels[$user['role'] ?? ''] ?? ucfirst((string)($user['role'] ?? ''));
+$flashError = $_SESSION['error'] ?? null;
+unset($_SESSION['error']);
+$csrfField  = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrf_token()) . '">';
+require_once __DIR__ . '/includes/kc_link.php';
+$isKcLinked = kc_is_user_linked((int)$_SESSION['user_id']);
+$kcUserId = $isKcLinked ? kc_get_kc_by_user_id((int)$_SESSION['user_id']) : null;
+?>
+
 <style>
-.pf-page { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
-.pf-title { font-size: 1.125rem; font-weight: 700; color: var(--neutral-900); margin: 0 0 1.5rem; }
-.pf-grid { display: grid; grid-template-columns: 1fr 280px; gap: 1.25rem; }
-@media(max-width:768px){ .pf-grid { grid-template-columns: 1fr; } }
-.pf-card { border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: #fff; overflow: hidden; margin-bottom: 1.25rem; }
-.pf-card:last-child { margin-bottom: 0; }
-.pf-card-head { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; justify-content: space-between; }
-.pf-card-head h2 { font-size: 0.875rem; font-weight: 600; color: var(--neutral-900); margin: 0; text-transform: uppercase; letter-spacing: 0.04em; }
-.pf-card-body { padding: 1.25rem; }
-.pf-info-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--neutral-100); font-size: 0.85rem; }
-.pf-info-row:last-child { border-bottom: none; }
-.pf-info-label { color: var(--neutral-500); }
-.pf-info-value { font-weight: 500; color: var(--neutral-900); }
-.pf-avatar { width: 2.5rem; height: 2.5rem; border-radius: 50%; background: var(--primary-100); color: var(--primary-600); display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 600; }
-.pf-admin-divider { border-top: 1px solid var(--neutral-200); margin: 1.25rem 0 1rem; padding-top: 1rem; }
-.pf-admin-divider h3 { font-size: 0.75rem; font-weight: 600; color: var(--neutral-500); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 1rem; }
-.pf-kc-row { display: flex; align-items: flex-start; gap: 0.875rem; }
-.pf-kc-icon { width: 2.25rem; height: 2.25rem; border-radius: var(--radius-md); border: 1px solid var(--neutral-200); display: flex; align-items: center; justify-content: center; font-size: 0.875rem; flex-shrink: 0; }
-.pf-kc-icon.connected { background: var(--success-50); color: var(--success-600); border-color: var(--success-200); }
-.pf-kc-icon.pending { background: var(--warning-50); color: var(--warning-600); border-color: var(--warning-200); }
+/* Profile: two-column settings layout (page-local). */
+.pf-grid { display: grid; gap: var(--spacing-6); grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 900px) { .pf-grid { grid-template-columns: 18rem minmax(0, 1fr); } .pf-identity { position: sticky; top: calc(var(--header-height) + var(--spacing-6)); } }
+.pf-avatar { width: 3.5rem; height: 3.5rem; border-radius: var(--radius-full); background: var(--mist); color: var(--ink); display: grid; place-items: center; font-size: var(--text-lg); font-weight: 500; margin-bottom: var(--spacing-4); }
+.pf-name { font-size: var(--text-lg); font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
+.pf-panels { display: flex; flex-direction: column; gap: var(--spacing-6); }
+.pf-panels .form-actions { margin-top: var(--spacing-6); }
+.pf-sub { font-size: var(--text-sm); font-weight: 500; color: var(--ink); margin: var(--spacing-6) 0 var(--spacing-4); padding-top: var(--spacing-6); border-top: 1px solid var(--hairline); }
+.pf-kc { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-4); }
+.pf-kc-status { display: flex; align-items: center; gap: var(--spacing-3); }
+.pf-kc-status img { width: 2rem; height: 2rem; object-fit: contain; border-radius: var(--radius); border: 1px solid var(--hairline); padding: 0.2rem; background: #fff; }
 </style>
 
-<div class="pf-page">
-    <h1 class="pf-title">My Profile</h1>
-        
-        <?php if (isset($_SESSION['error'])): ?>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    showToast('<?php echo addslashes($_SESSION['error']); ?>', 'error', 5000);
-                });
-            </script>
-            <?php unset($_SESSION['error']); ?>
-        <?php endif; ?>
+<nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="<?php echo BASE_URL; ?>/dashboard.php">Home</a><span class="sep">/</span><span>My account</span>
+</nav>
+<div class="page-head">
+    <div>
+        <div class="page-eyebrow">Settings</div>
+        <h1 class="page-title">My account</h1>
+        <p class="page-sub">Your profile, password and KingsChat sign-in.</p>
+    </div>
+</div>
 
-        <?php if (isset($_SESSION['success'])): ?>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    showAlert('Success', '<?php echo addslashes($_SESSION['success']); ?>', 'success');
-                });
-            </script>
-            <?php unset($_SESSION['success']); ?>
-        <?php endif; ?>
-        
-    <div class="pf-grid">
-        <div>
-            <div class="pf-card">
-                <div class="pf-card-head"><h2>Profile Information</h2></div>
-                <div class="pf-card-body">
-                        <form method="POST" class="space-y-6 needs-validation" novalidate>
-                            <div class="modern-form-group">
-                                <label for="name" class="modern-form-label">Full Name</label>
-                                <input type="text" id="name" name="name" class="modern-form-input" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>" required>
-                            </div>
-                            
+<?php if (isset($_SESSION['success'])): ?>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        showAlert('Success', '<?php echo addslashes($_SESSION['success']); ?>', 'success');
+    });
+</script>
+<?php unset($_SESSION['success']); ?>
+<?php endif; ?>
 
-                            
-                            <div class="modern-form-group">
-                                <label for="username" class="modern-form-label">Username</label>
-                                <input type="text" id="username" name="username" class="modern-form-input" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" required>
-                            </div>
-                            
-                            <?php if (Auth::isAdmin()): ?>
-                            <div class="pt-4 border-t border-gray-200">
-                                <h3 class="text-lg font-medium text-gray-900 mb-4">Administrative Information</h3>
-                                <input type="hidden" name="update_role" value="1">
-                                
-                                <div class="modern-form-group">
-                                    <label for="role" class="modern-form-label">Role</label>
-                                    <select id="role" name="role" class="modern-form-input">
-                                        <option value="admin" <?php echo ($user['role'] ?? '') === 'admin' ? 'selected' : ''; ?>>Admin</option>
-                                        <option value="user" <?php echo ($user['role'] ?? '') === 'user' ? 'selected' : ''; ?>>RZM</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="modern-form-group">
-                                    <label for="region" class="modern-form-label">Region</label>
-                                    <select id="region" name="region" class="modern-form-input">
-                                        <option value="">Select Region</option>
-                                        <?php foreach ($REGIONS_ZONES as $region => $zones): ?>
-                                            <option value="<?php echo htmlspecialchars($region); ?>" <?php echo ($user['region'] ?? '') === $region ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($region); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                                
-                                <div class="modern-form-group">
-                                    <label for="zone" class="modern-form-label">Zone</label>
-                                    <select id="zone" name="zone" class="modern-form-input">
-                                        <option value="">Select Zone</option>
-                                        <?php 
-                                        if (!empty($user['region']) && isset($REGIONS_ZONES[$user['region']])) {
-                                            foreach ($REGIONS_ZONES[$user['region']] as $zone) {
-                                                $selected = $user['zone'] === $zone ? 'selected' : '';
-                                                echo "<option value=\"" . htmlspecialchars($zone) . "\" $selected>" . htmlspecialchars($zone) . "</option>";
-                                            }
-                                        }
-                                        ?>
-                                    </select>
-                                </div>
-                            </div>
-                            <?php else: ?>
-                            <div class="pt-4 border-t border-gray-200">
-                                <h3 class="text-lg font-medium text-gray-900 mb-4">Administrative Information</h3>
-                                
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                                        <div class="text-gray-900 font-medium"><?php echo $user['role'] === 'user' ? 'RZM' : ucfirst(htmlspecialchars($user['role'])); ?></div>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Region</label>
-                                        <div class="text-gray-900 font-medium"><?php echo htmlspecialchars($user['region'] ?: 'Not assigned'); ?></div>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Zone</label>
-                                        <div class="text-gray-900 font-medium"><?php echo htmlspecialchars($user['zone'] ?: 'Not assigned'); ?></div>
-                                    </div>
-                                </div>
-                                <p class="mt-2 text-sm text-gray-500">Contact an administrator to update these fields.</p>
-                            </div>
-                            <?php endif; ?>
-                            
-                        <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--neutral-200);">
-                            <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;" data-loading-text="Saving…"><i class="fas fa-save modern-button-icon"></i> Save Changes</button>
-                        </div>
-                    </form>
-                </div>
+<div class="pf-grid">
+    <!-- Identity -->
+    <aside class="panel pf-identity" aria-label="Account summary">
+        <div class="panel-body">
+            <div class="pf-avatar" aria-hidden="true"><?php echo htmlspecialchars(strtoupper(mb_substr($user['name'] ?? 'U', 0, 1))); ?></div>
+            <div class="pf-name"><?php echo htmlspecialchars($user['name'] ?? ''); ?></div>
+            <div class="muted" style="font-size:var(--text-sm);">@<?php echo htmlspecialchars($user['username'] ?? ''); ?></div>
+            <div style="margin-top:var(--spacing-3);display:flex;gap:var(--spacing-2);flex-wrap:wrap;">
+                <span class="badge badge-info no-dot"><?php echo htmlspecialchars($roleLabel); ?></span>
+                <span class="badge <?php echo $user['active'] ? 'badge-success' : 'badge-warning'; ?>"><?php echo $user['active'] ? 'Active' : 'Pending'; ?></span>
             </div>
+            <dl class="kv" style="margin-top:var(--spacing-5);">
+                <dt>Region</dt><dd><?php echo htmlspecialchars($user['region'] ?: 'Not assigned'); ?></dd>
+                <dt>Zone</dt><dd><?php echo htmlspecialchars($user['zone'] ?: 'Not assigned'); ?></dd>
+                <dt>Member since</dt><dd><?php echo htmlspecialchars(date('M j, Y', strtotime($user['created_at']))); ?></dd>
+            </dl>
+            <?php if (!Auth::isAdmin()): ?>
+            <p class="field-help" style="margin-top:var(--spacing-4);">Contact an administrator to change your role, region or zone.</p>
+            <?php endif; ?>
+        </div>
+    </aside>
 
-            <div class="pf-card">
-                <div class="pf-card-head"><h2>Change Password</h2></div>
-                <div class="pf-card-body">
-                        <form method="POST" class="space-y-6 needs-validation" novalidate>
-                            <!-- Keep the profile fields but hidden -->
-                            <input type="hidden" name="name" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>">
-                            <input type="hidden" name="username" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>">
-                            
-                            <div class="modern-form-group">
-                                <label for="current_password" class="modern-form-label">Current Password</label>
-                                <input type="password" id="current_password" name="current_password" class="modern-form-input" required>
-                            </div>
-                            
-                            <div class="modern-form-group">
-                                <label for="new_password" class="modern-form-label">New Password</label>
-                                <input type="password" id="new_password" name="new_password" class="modern-form-input" required minlength="8">
-                                <p class="modern-form-help">Password must be at least 8 characters long</p>
-                            </div>
-                            
-                            <div class="modern-form-group">
-                                <label for="confirm_password" class="modern-form-label">Confirm New Password</label>
-                                <input type="password" id="confirm_password" name="confirm_password" class="modern-form-input" required>
-                            </div>
-                            
-                    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--neutral-200);">
-                        <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;" data-loading-text="Updating…"><i class="fas fa-key modern-button-icon"></i> Update Password</button>
+    <div class="pf-panels">
+        <?php if ($flashError): ?>
+        <div class="alert alert-danger" role="alert" style="margin-bottom:0;">
+            <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+            <div><div class="alert-title">Changes not saved</div><?php echo htmlspecialchars($flashError); ?></div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Profile details -->
+        <section class="panel" aria-labelledby="pf-details">
+            <div class="panel-head"><h2 id="pf-details" class="section-title">Profile details</h2></div>
+            <div class="panel-body">
+                <form method="POST" class="needs-validation" novalidate>
+                    <?php echo $csrfField; ?>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="name" class="field-label">Full name</label>
+                            <input type="text" id="name" name="name" class="input" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>" required autocomplete="name">
+                        </div>
+                        <div class="field">
+                            <label for="username" class="field-label">Username</label>
+                            <input type="text" id="username" name="username" class="input" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" required autocomplete="username">
+                        </div>
+                    </div>
+
+                    <?php if (Auth::isAdmin()): ?>
+                    <h3 class="pf-sub">Role &amp; assignment</h3>
+                    <input type="hidden" name="update_role" value="1">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="role" class="field-label">Role</label>
+                            <select id="role" name="role" class="input">
+                                <option value="admin" <?php echo ($user['role'] ?? '') === 'admin' ? 'selected' : ''; ?>>Admin</option>
+                                <option value="admin-manager" <?php echo ($user['role'] ?? '') === 'admin-manager' ? 'selected' : ''; ?>>Admin Manager</option>
+                                <option value="rzm" <?php echo ($user['role'] ?? '') === ROLE_RZM ? 'selected' : ''; ?>>RZM</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="region" class="field-label">Region</label>
+                            <select id="region" name="region" class="input">
+                                <option value="">Select region</option>
+                                <?php foreach ($REGIONS_ZONES as $region => $zones): ?>
+                                <option value="<?php echo htmlspecialchars($region); ?>" <?php echo ($user['region'] ?? '') === $region ? 'selected' : ''; ?>><?php echo htmlspecialchars($region); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="zone" class="field-label">Zone</label>
+                            <select id="zone" name="zone" class="input">
+                                <option value="">Select Zone</option>
+                                <?php
+                                if (!empty($user['region']) && isset($REGIONS_ZONES[$user['region']])) {
+                                    foreach ($REGIONS_ZONES[$user['region']] as $zone) {
+                                        $selected = $user['zone'] === $zone ? 'selected' : '';
+                                        echo "<option value=\"" . htmlspecialchars($zone) . "\" $selected>" . htmlspecialchars($zone) . "</option>";
+                                    }
+                                }
+                                ?>
+                            </select>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" data-loading-text="Saving…">Save changes</button>
                     </div>
                 </form>
-                </div>
             </div>
-        </div>
+        </section>
 
-        <!-- Sidebar -->
-        <div>
-            <div class="pf-card">
-                <div class="pf-card-head"><h2>Account</h2></div>
-                <div class="pf-card-body">
-                    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
-                        <div class="pf-avatar"><?php echo strtoupper(substr($user['name'] ?? 'U', 0, 1)); ?></div>
-                        <div>
-                            <div style="font-size:0.9rem;font-weight:600;color:var(--neutral-900);"><?php echo htmlspecialchars($user['name'] ?? ''); ?></div>
-                            <div style="font-size:0.8rem;color:var(--neutral-500);">@<?php echo htmlspecialchars($user['username'] ?? ''); ?></div>
+        <!-- Change password -->
+        <section class="panel" aria-labelledby="pf-password">
+            <div class="panel-head"><h2 id="pf-password" class="section-title">Change password</h2></div>
+            <div class="panel-body">
+                <form method="POST" class="needs-validation" novalidate>
+                    <?php echo $csrfField; ?>
+                    <input type="hidden" name="name" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>">
+                    <input type="hidden" name="username" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>">
+                    <div class="field">
+                        <label for="current_password" class="field-label">Current password</label>
+                        <input type="password" id="current_password" name="current_password" class="input" required autocomplete="current-password">
+                    </div>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="new_password" class="field-label">New password</label>
+                            <input type="password" id="new_password" name="new_password" class="input" required minlength="8" autocomplete="new-password" aria-describedby="new_password_help">
+                            <p class="field-help" id="new_password_help">At least 8 characters.</p>
+                        </div>
+                        <div class="field">
+                            <label for="confirm_password" class="field-label">Confirm new password</label>
+                            <input type="password" id="confirm_password" name="confirm_password" class="input" required autocomplete="new-password">
                         </div>
                     </div>
-                    <div class="pf-info-row"><span class="pf-info-label">Role</span><span class="pf-info-value"><?php echo $user['role'] === 'user' ? 'RZM' : ucfirst(htmlspecialchars($user['role'])); ?></span></div>
-                    <div class="pf-info-row"><span class="pf-info-label">Status</span><span class="modern-badge <?php echo $user['active'] ? 'modern-badge-success' : 'modern-badge-warning'; ?>"><?php echo $user['active'] ? 'Active' : 'Pending'; ?></span></div>
-                    <div class="pf-info-row"><span class="pf-info-label">Member Since</span><span class="pf-info-value"><?php echo date('M j, Y', strtotime($user['created_at'])); ?></span></div>
-                </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-secondary" data-loading-text="Updating…">Update password</button>
+                    </div>
+                </form>
             </div>
+        </section>
 
-            <!-- KingsChat Integration -->
-            <?php
-            require_once __DIR__ . '/includes/kc_link.php';
-            $isKcLinked = kc_is_user_linked((int)$_SESSION['user_id']);
-            $kcUserId = $isKcLinked ? kc_get_kc_by_user_id((int)$_SESSION['user_id']) : null;
-            ?>
-            <div class="pf-card">
-                <div class="pf-card-head"><h2>KingsChat</h2></div>
-                <div class="pf-card-body">
-                    <div class="pf-kc-row">
-                        <div class="pf-kc-icon <?php echo $isKcLinked ? 'connected' : 'pending'; ?>">
-                            <i class="fas <?php echo $isKcLinked ? 'fa-check' : 'fa-exclamation'; ?>"></i>
-                        </div>
-                        <div style="flex:1;">
-                            <div style="font-size:0.875rem;font-weight:600;color:var(--neutral-900);"><?php echo $isKcLinked ? 'Connected' : 'Not Connected'; ?></div>
-                            <?php if ($isKcLinked): ?>
-                            <div style="font-size:0.8rem;color:var(--neutral-500);margin-top:0.15rem;">KingsChat account is linked</div>
-                            <?php if ($kcUserId): ?><div style="font-size:0.75rem;color:var(--neutral-400);font-family:monospace;margin-top:0.25rem;">ID: <?php echo htmlspecialchars($kcUserId); ?></div><?php endif; ?>
-                            <button onclick="unlinkKingsChat()" style="margin-top:0.6rem;font-size:0.8rem;color:var(--danger-600);background:none;border:none;cursor:pointer;padding:0;"><i class="fas fa-unlink" style="margin-right:0.3rem;"></i>Unlink</button>
-                            <?php else: ?>
-                            <div style="font-size:0.8rem;color:var(--neutral-500);margin-top:0.15rem;">Link for quick login &amp; notifications</div>
-                            <button onclick="linkKingsChat()" class="modern-button modern-button-primary" style="margin-top:0.6rem;font-size:0.8rem;"><i class="fas fa-link modern-button-icon"></i>Link KingsChat</button>
-                            <?php endif; ?>
-                        </div>
+        <!-- KingsChat -->
+        <section class="panel" aria-labelledby="pf-kc">
+            <div class="panel-head"><h2 id="pf-kc" class="section-title">KingsChat</h2></div>
+            <div class="panel-body pf-kc">
+                <div class="pf-kc-status">
+                    <img src="<?php echo BASE_URL; ?>/assets/images/kingschat-logo.png" alt="">
+                    <div>
+                        <span class="badge <?php echo $isKcLinked ? 'badge-success' : 'badge-warning'; ?>"><?php echo $isKcLinked ? 'Connected' : 'Not connected'; ?></span>
+                        <div class="muted" style="font-size:var(--text-sm);margin-top:var(--spacing-1);"><?php echo $isKcLinked ? 'You can sign in with KingsChat.' : 'Link your account for one-tap sign-in.'; ?></div>
+                        <?php if ($isKcLinked && $kcUserId): ?><div class="meta" style="margin-top:var(--spacing-1);overflow-wrap:anywhere;">ID <?php echo htmlspecialchars($kcUserId); ?></div><?php endif; ?>
                     </div>
                 </div>
+                <?php if ($isKcLinked): ?>
+                <button type="button" onclick="unlinkKingsChat()" class="btn btn-danger btn-sm"><i class="fas fa-unlink" aria-hidden="true"></i> Unlink</button>
+                <?php else: ?>
+                <button type="button" onclick="linkKingsChat()" class="btn btn-secondary btn-sm"><i class="fas fa-link" aria-hidden="true"></i> Link KingsChat</button>
+                <?php endif; ?>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 
@@ -358,8 +336,8 @@ function unlinkKingsChat() {
         showCancelButton: true,
         confirmButtonText: 'Yes, unlink it',
         cancelButtonText: 'Cancel',
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#6b7280'
+        confirmButtonColor: 'var(--danger-600)',
+        cancelButtonColor: 'var(--neutral-500)'
     }).then((result) => {
         if (result.isConfirmed) {
             console.log('[KC_UNLINK] Sending unlink request...');

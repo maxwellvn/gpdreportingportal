@@ -22,6 +22,7 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
 // Define base URL from config
 $baseUrl = defined('BASE_URL') ? BASE_URL : '';
 $appJsVersion = @filemtime(__DIR__ . '/../assets/js/app.js') ?: time();
+$themeCssVersion = @filemtime(__DIR__ . '/../assets/css/modern-theme.css') ?: time();
 // KingsChat linkage check
 require_once __DIR__ . '/../includes/kc_link.php';
 $needsKcLink = false;
@@ -36,6 +37,7 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#ffffff">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token()); ?>">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="format-detection" content="telephone=no">
@@ -43,12 +45,13 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
     <link rel="icon" href="<?php echo $baseUrl; ?>/favicon.ico">
     <link rel="shortcut icon" href="<?php echo $baseUrl; ?>/favicon.ico">
     <link rel="icon" type="image/webp" href="<?php echo $baseUrl; ?>/assets/images/logo-rc.webp">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="<?php echo $baseUrl; ?>/assets/css/components.css" rel="stylesheet">
-    <link href="<?php echo $baseUrl; ?>/assets/css/libraries.css" rel="stylesheet">
-    <link href="<?php echo $baseUrl; ?>/assets/css/modern-theme.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <link href="<?php echo $baseUrl; ?>/assets/css/modern-theme.css?v=<?php echo $themeCssVersion; ?>" rel="stylesheet">
+    <link href="<?php echo $baseUrl; ?>/assets/css/utilities.css?v=<?php echo $themeCssVersion; ?>" rel="stylesheet">
+    <link href="<?php echo $baseUrl; ?>/assets/css/libraries.css?v=<?php echo $themeCssVersion; ?>" rel="stylesheet">
     
     <!-- jQuery - Required for plugins -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -65,7 +68,7 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     
-    <script>window.BASE_URL = '<?php echo $baseUrl; ?>'; window.IS_LOGGED_IN = <?php echo $isLoggedIn ? 'true' : 'false'; ?>;</script>
+    <script>window.BASE_URL = '<?php echo $baseUrl; ?>'; window.IS_LOGGED_IN = <?php echo $isLoggedIn ? 'true' : 'false'; ?>; window.CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;</script>
     <!-- Custom App JavaScript -->
     <script src="<?php echo $baseUrl; ?>/assets/js/app.js?v=<?php echo $appJsVersion; ?>"></script>
     <script>
@@ -75,8 +78,6 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
     <script src="<?php echo $baseUrl; ?>/assets/js/preloader.js"></script>
     <script src="<?php echo $baseUrl; ?>/assets/js/modern-theme.js"></script>
     
-    <!-- Custom Library Styles -->
-    <link href="<?php echo $baseUrl; ?>/assets/css/libraries.css" rel="stylesheet" />
     
     <script>
     // Toast notification function
@@ -98,8 +99,7 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
             title: title,
             text: text,
             icon: icon,
-            confirmButtonColor: 'var(--primary-600)'
-        });
+                    });
     }
     
     // Confirmation dialog function
@@ -109,8 +109,7 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
             text: text,
             icon: icon,
             showCancelButton: true,
-            confirmButtonColor: 'var(--primary-600)',
-            cancelButtonColor: 'var(--gray-500)',
+            
             confirmButtonText: confirmButtonText
         }).then((result) => {
             if (result.isConfirmed && typeof onConfirm === 'function') {
@@ -151,7 +150,7 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
             
             // Set loading state
             submitBtn.disabled = true;
-            submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> ${loadingText}`;
+            submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ${loadingText}`;
             
             // Submit form after a short delay to show loading state
             setTimeout(() => {
@@ -174,529 +173,179 @@ if ($isLoggedIn && isset($_SESSION['user_id'])) {
             showConfirmButton: false,
             showCloseButton: true,
             background: '#fff',
-            customClass: {
-                image: 'max-h-[80vh] max-w-full'
-            }
+            imageHeight: Math.round(window.innerHeight * 0.8)
         });
     }
     
     </script>
 
-    <!-- Custom Flatpickr Styling -->
-    <style>
-        /* Input field styling */
-        .date-picker-container {
-            position: relative;
-        }
-
-        .date-picker-container .flatpickr-input {
-            padding-left: 2.5rem !important;
-            background-color: white;
-            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-        }
-
-        .date-picker-container .flatpickr-input:focus {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
-        }
-
-        .date-picker-container .calendar-icon {
-            position: absolute;
-            left: 0.75rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6b7280;
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        /* Calendar popup styling */
-        .flatpickr-calendar {
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            border: 1px solid #e5e7eb;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .flatpickr-months {
-            background-color: #3b82f6;
-            color: white;
-            border-radius: 0.5rem 0.5rem 0 0;
-            padding: 0.5rem 0;
-        }
-
-        .flatpickr-month {
-            height: 40px;
-        }
-
-        .flatpickr-current-month {
-            padding-top: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-        }
-
-        .flatpickr-monthDropdown-months {
-            background-color: transparent;
-            color: white;
-            font-weight: 600;
-        }
-
-        .flatpickr-monthDropdown-months:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .numInputWrapper span {
-            border: none;
-        }
-
-        .flatpickr-current-month .numInputWrapper span.arrowUp:after {
-            border-bottom-color: rgba(255, 255, 255, 0.9);
-        }
-
-        .flatpickr-current-month .numInputWrapper span.arrowDown:after {
-            border-top-color: rgba(255, 255, 255, 0.9);
-        }
-
-        .flatpickr-months .flatpickr-prev-month,
-        .flatpickr-months .flatpickr-next-month {
-            color: white;
-            fill: white;
-            height: 40px;
-            padding: 10px;
-        }
-
-        .flatpickr-months .flatpickr-prev-month:hover,
-        .flatpickr-months .flatpickr-next-month:hover {
-            color: white;
-            fill: white;
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .flatpickr-current-month input.cur-year {
-            color: white;
-            font-weight: 600;
-        }
-
-        .flatpickr-day {
-            border-radius: 0.25rem;
-            margin: 2px;
-            max-width: calc(100% / 7 - 4px);
-        }
-
-        .flatpickr-day.selected,
-        .flatpickr-day.startRange,
-        .flatpickr-day.endRange,
-        .flatpickr-day.selected.inRange,
-        .flatpickr-day.startRange.inRange,
-        .flatpickr-day.endRange.inRange,
-        .flatpickr-day.selected:focus,
-        .flatpickr-day.startRange:focus,
-        .flatpickr-day.endRange:focus,
-        .flatpickr-day.selected:hover,
-        .flatpickr-day.startRange:hover,
-        .flatpickr-day.endRange:hover,
-        .flatpickr-day.selected.prevMonthDay,
-        .flatpickr-day.startRange.prevMonthDay,
-        .flatpickr-day.endRange.prevMonthDay,
-        .flatpickr-day.selected.nextMonthDay,
-        .flatpickr-day.startRange.nextMonthDay,
-        .flatpickr-day.endRange.nextMonthDay {
-            background: #3b82f6;
-            border-color: #3b82f6;
-            color: white;
-            font-weight: 600;
-        }
-
-        .flatpickr-day.today {
-            border-color: #3b82f6;
-            color: #3b82f6;
-            font-weight: 600;
-        }
-
-        .flatpickr-day.today:hover {
-            background: #3b82f6;
-            color: white;
-        }
-
-        .flatpickr-day:hover {
-            background: #f3f4f6;
-        }
-
-        .flatpickr-time {
-            border-top: 1px solid #e5e7eb;
-        }
-
-        .flatpickr-clear-button {
-            position: absolute;
-            right: 2.5rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #9ca3af;
-            cursor: pointer;
-            z-index: 3;
-            transition: color 0.15s ease-in-out;
-        }
-
-        .flatpickr-clear-button:hover {
-            color: #6b7280;
-        }
-    </style>
-    <style>
-        :root {
-            --header-height: 4rem;
-            --mobile-nav-height: 3.5rem;
-        }
-
-        * {
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        html {
-            scroll-behavior: smooth;
-            height: -webkit-fill-available;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-image: url('<?php echo $baseUrl; ?>/assets/images/background.jpg');
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-            background-repeat: no-repeat;
-            min-height: 100vh;
-            min-height: -webkit-fill-available;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        input, select, textarea {
-            font-size: 16px !important; /* Prevents iOS zoom on focus */
-        }
-
-        .content-overlay {
-            background-color: rgba(255, 255, 255, 0.9);
-            min-height: 100vh;
-            width: 100%;
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-
-        .auth-overlay {
-            background-color: rgba(255, 255, 255, 0.95);
-            border-radius: 1rem;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-
-        /* Preloader Styles */
-        .preloader {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.98);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease-out;
-            pointer-events: none; /* Prevent clicks during fade-out */
-        }
-        .preloader.fade-out {
-            opacity: 0;
-            visibility: hidden; /* Completely hide it after fade-out */
-        }
-        .preloader-spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Mobile Menu Styles */
-        .mobile-menu {
-            display: none;
-            position: fixed;
-            top: var(--header-height);
-            left: 0;
-            right: 0;
-            background: white;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            z-index: 40;
-            max-height: calc(100vh - var(--header-height));
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .mobile-menu.active {
-            display: block;
-        }
-
-        /* Mobile Optimizations */
-        @media (max-width: 768px) {
-            main {
-                padding-top: calc(var(--header-height) + 1rem) !important;
-            }
-            .container {
-                padding-left: 1rem !important;
-                padding-right: 1rem !important;
-            }
-            .table-responsive {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-                margin: 0 -1rem;
-                padding: 0 1rem;
-            }
-            .touch-scroll {
-                -webkit-overflow-scrolling: touch;
-                overflow-x: auto;
-            }
-        }
-
-        /* iOS Safe Area Support */
-        @supports (padding: max(0px)) {
-            .content-overlay {
-                padding-left: max(1rem, env(safe-area-inset-left));
-                padding-right: max(1rem, env(safe-area-inset-right));
-                padding-bottom: max(1rem, env(safe-area-inset-bottom));
-            }
-            header {
-                padding-top: env(safe-area-inset-top);
-                height: calc(var(--header-height) + env(safe-area-inset-top));
-            }
-            .mobile-menu {
-                top: calc(var(--header-height) + env(safe-area-inset-top));
-                max-height: calc(100vh - var(--header-height) - env(safe-area-inset-top));
-                padding-bottom: env(safe-area-inset-bottom);
-            }
-        }
-    </style>
 </head>
-<body class="bg-gray-50 min-h-screen modern-layout">
-    <!-- Modern Preloader -->
-    <div class="modern-preloader" id="preloader">
-        <div class="modern-preloader-spinner"></div>
-    </div>
+<?php
+$navRole = $userData['role'] ?? ROLE_RZM;
+$navIsAdminRole = $navRole === ROLE_ADMIN;
+$navIsManagerRole = $navRole === ROLE_ADMIN_MANAGER;
+$navRoleLabel = $navIsAdminRole ? 'Administrator' : ($navIsManagerRole ? 'Admin Manager' : 'RZM');
+$navRequestUri = $_SERVER['REQUEST_URI'] ?? '';
+$navInAdmin = strpos($navRequestUri, '/admin/') !== false;
+$navNavActive = function ($navMatch) use ($currentPage, $navInAdmin) {
+    [$page, $admin] = $navMatch;
+    return ($currentPage === $page && $navInAdmin === $admin) ? 'active' : '';
+};
+
+// Admin: count accounts waiting for approval for the People badge
+$navPendingApprovals = 0;
+if ($isLoggedIn && $navIsAdminRole) {
+    try {
+        $navPendingApprovals = (int)(new Database())->getConnection()->query("SELECT COUNT(*) FROM users WHERE active = 0")->fetchColumn();
+    } catch (Exception $e) {
+        error_log('Pending approvals count failed: ' . $e->getMessage());
+    }
+}
+
+// Primary nav per role: [label, href, icon, [page, inAdmin]]
+$navPrimaryNav = [];
+$navMoreNav = [];
+if ($isLoggedIn) {
+    if ($navIsAdminRole) {
+        $navPrimaryNav = [
+            ['Overview', '/dashboard.php', 'fa-house', ['dashboard.php', false]],
+            ['Reports', '/pages/reports/list.php', 'fa-file-lines', ['list.php', false]],
+            ['Statistics', '/admin/dashboard.php', 'fa-chart-column', ['dashboard.php', true]],
+            ['Compliance', '/admin/zone_compliance.php', 'fa-list-check', ['zone_compliance.php', true]],
+            ['People', '/admin/users.php', 'fa-users', ['users.php', true]],
+        ];
+        $navMoreNav = [
+            ['Analytics', '/pages/analytics.php', 'fa-chart-line'],
+            ['Submit a report', '/pages/reports/create.php', 'fa-paper-plane'],
+            ['Audit log', '/admin/audit_log.php', 'fa-clock-rotate-left'],
+            ['Settings', '/admin/settings.php', 'fa-gear'],
+            ['Distribution', '/distribution/dashboard', 'fa-arrow-up-right-from-square'],
+        ];
+    } elseif ($navIsManagerRole) {
+        $navPrimaryNav = [
+            ['Overview', '/dashboard.php', 'fa-house', ['dashboard.php', false]],
+            ['Region reports', '/pages/reports/list.php', 'fa-file-lines', ['list.php', false]],
+            ['Analytics', '/pages/analytics.php', 'fa-chart-line', ['analytics.php', false]],
+        ];
+        $navMoreNav = [['Distribution', '/distribution/dashboard', 'fa-arrow-up-right-from-square']];
+    } else {
+        $navPrimaryNav = [
+            ['Home', '/dashboard.php', 'fa-house', ['dashboard.php', false]],
+            ['Submit report', '/pages/reports/create.php', 'fa-paper-plane', ['create.php', false]],
+            ['History', '/pages/reports/list.php', 'fa-file-lines', ['list.php', false]],
+            ['Analytics', '/pages/analytics.php', 'fa-chart-line', ['analytics.php', false]],
+        ];
+        $navMoreNav = [['Distribution', '/distribution/dashboard', 'fa-arrow-up-right-from-square']];
+    }
+}
+$navInitial = strtoupper(substr($userData['name'] ?? $userData['username'] ?? 'U', 0, 1));
+$navDisplayName = $userData['name'] ?? $userData['username'] ?? '';
+?>
+<body class="modern-layout">
+    <div class="modern-preloader" id="preloader"><div class="modern-preloader-spinner"></div></div>
 
     <div class="content-overlay">
-    <style>
-    /* ── Flat nav overrides ── */
-    .modern-header { box-shadow: none; border-bottom: 1px solid var(--neutral-200); }
-    .nh-logo { font-size: 0.9375rem; font-weight: 600; color: var(--neutral-900); letter-spacing: -0.01em; display: flex; align-items: center; gap: 0.5rem; text-decoration: none; }
-    .nh-logo img { height: 1.6rem; width: auto; }
-    .nh-nav { display: flex; align-items: center; height: 100%; gap: 0; }
-    .nh-nav a { display: flex; align-items: center; height: 100%; padding: 0 0.9rem; font-size: 0.8125rem; font-weight: 500; color: var(--neutral-600); text-decoration: none; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; white-space: nowrap; }
-    .nh-nav a:hover { color: var(--neutral-900); }
-    .nh-nav a.active { color: var(--primary-600); border-bottom-color: var(--primary-600); }
-    .nh-user { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.35rem 0.6rem; border-radius: var(--radius-md); transition: background 0.15s; position: relative; }
-    .nh-user:hover { background: var(--neutral-100); }
-    .nh-avatar { width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--primary-100); color: var(--primary-700); font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .nh-user-name { font-size: 0.8125rem; font-weight: 500; color: var(--neutral-800); }
-    .nh-chevron { font-size: 0.6rem; color: var(--neutral-400); }
-    .nh-dropdown { position: absolute; right: 0; top: calc(100% + 0.35rem); width: 13rem; background: #fff; border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); overflow: hidden; z-index: 60; box-shadow: var(--shadow-md); }
-    .nh-dropdown.hidden { display: none; }
-    .nh-dropdown-head { padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--neutral-100); }
-    .nh-dropdown-head strong { display: block; font-size: 0.8125rem; font-weight: 600; color: var(--neutral-900); }
-    .nh-dropdown-head span { font-size: 0.72rem; color: var(--neutral-400); }
-    .nh-dropdown a { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.9rem; font-size: 0.8125rem; color: var(--neutral-700); text-decoration: none; transition: background 0.12s; }
-    .nh-dropdown a:hover { background: var(--neutral-50); color: var(--neutral-900); }
-    .nh-dropdown a.danger { color: var(--danger-600); }
-    .nh-dropdown a.danger:hover { background: var(--danger-50); }
-    .nh-divider { border: none; border-top: 1px solid var(--neutral-100); margin: 0.2rem 0; }
-    .nh-mobile-btn { display: none; align-items: center; justify-content: center; width: 2rem; height: 2rem; color: var(--neutral-600); border-radius: var(--radius-md); cursor: pointer; }
-    .nh-mobile-btn:hover { background: var(--neutral-100); color: var(--neutral-900); }
-    /* Tablet & mobile: hide desktop nav, show hamburger */
-    @media (max-width: 1024px) {
-        .nh-nav { display: none; }
-        .nh-mobile-btn { display: flex; }
-    }
-    @media (max-width: 640px) {
-        .nh-user-name, .nh-chevron { display: none; }
-        .nh-logo span { display: none; }
-    }
-    /* Action bar responsive */
-    #action-bar { flex-wrap: wrap; gap: 0.4rem !important; }
-    @media (max-width: 480px) {
-        #action-bar { font-size: 0.75rem; padding: 0.4rem 0.75rem; }
-        #action-bar span { flex: 1 1 100%; }
-        #action-bar a { margin-left: 0 !important; }
-    }
-    </style>
-
-    <!-- Flat Header -->
     <header class="modern-header">
         <div class="modern-header-container">
-            <!-- Logo -->
             <a href="<?php echo $baseUrl; ?>/dashboard.php" class="nh-logo">
-                <img src="<?php echo $baseUrl; ?>/assets/images/logo-rc.webp" alt="GPD">
-                GPD Reporting Portal
+                <img src="<?php echo $baseUrl; ?>/assets/images/logo-rc.webp" alt="" width="28" height="28">
+                <span>GPD Reporting Portal</span>
             </a>
 
             <?php if ($isLoggedIn): ?>
-            <!-- Desktop Nav -->
-            <nav class="nh-nav">
-                <a href="<?php echo $baseUrl; ?>/dashboard.php" class="<?php echo $currentPage === 'dashboard.php' && strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') === false ? 'active' : ''; ?>"><i class="fas fa-home" style="font-size:0.75rem;margin-right:0.3rem;"></i>Dashboard</a>
-                <?php if (!isset($userData['role']) || $userData['role'] === 'user' || $userData['role'] === 'admin'): ?>
-                <a href="<?php echo $baseUrl; ?>/pages/reports/create.php" class="<?php echo $currentPage === 'create.php' ? 'active' : ''; ?>"><i class="fas fa-paper-plane" style="font-size:0.75rem;margin-right:0.3rem;"></i>Submit Report</a>
+            <nav class="nh-nav" aria-label="Main">
+                <?php foreach ($navPrimaryNav as [$navLabel, $navHref, $navIcon, $navMatch]): ?>
+                <a href="<?php echo $baseUrl . $navHref; ?>" class="<?php echo $navNavActive($navMatch); ?>"<?php echo $navNavActive($navMatch) ? ' aria-current="page"' : ''; ?>>
+                    <?php echo htmlspecialchars($navLabel); ?>
+                    <?php if ($navLabel === 'People' && $navPendingApprovals > 0): ?><span class="nh-count" title="Awaiting approval"><?php echo $navPendingApprovals; ?></span><?php endif; ?>
+                </a>
+                <?php endforeach; ?>
+                <?php if ($navMoreNav): ?>
+                <details class="nh-more">
+                    <summary>More <i class="fas fa-chevron-down nh-chevron" aria-hidden="true"></i></summary>
+                    <div class="nh-more-menu">
+                        <?php foreach ($navMoreNav as [$navLabel, $navHref, $navIcon]): ?>
+                        <a href="<?php echo $baseUrl . $navHref; ?>"><i class="fas <?php echo $navIcon; ?>"></i><?php echo htmlspecialchars($navLabel); ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                </details>
                 <?php endif; ?>
-                <a href="<?php echo $baseUrl; ?>/pages/reports/list.php" class="<?php echo $currentPage === 'list.php' ? 'active' : ''; ?>"><i class="fas fa-list" style="font-size:0.75rem;margin-right:0.3rem;"></i>My Reports</a>
-                <a href="<?php echo $baseUrl; ?>/pages/analytics.php" class="<?php echo $currentPage === 'analytics.php' ? 'active' : ''; ?>"><i class="fas fa-chart-area" style="font-size:0.75rem;margin-right:0.3rem;"></i>Analytics</a>
-                <a href="<?php echo $baseUrl; ?>/distribution/dashboard" class="<?php echo strpos($_SERVER['REQUEST_URI'] ?? '', '/distribution/') !== false ? 'active' : ''; ?>"><i class="fas fa-hands-helping" style="font-size:0.75rem;margin-right:0.3rem;"></i>Distribution</a>
-                <?php if (isset($userData['role']) && $userData['role'] === 'admin'): ?>
-                <a href="<?php echo $baseUrl; ?>/admin/users.php" class="<?php echo strpos($currentPage, 'users.php') !== false ? 'active' : ''; ?>"><i class="fas fa-users" style="font-size:0.75rem;margin-right:0.3rem;"></i>Users</a>
-                <a href="<?php echo $baseUrl; ?>/admin/dashboard.php" class="<?php echo strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/dashboard') !== false ? 'active' : ''; ?>"><i class="fas fa-chart-bar" style="font-size:0.75rem;margin-right:0.3rem;"></i>Admin Stats</a>
-                <?php endif; ?>
-                <a href="<?php echo $baseUrl; ?>/search.php" class="<?php echo $currentPage === 'search.php' ? 'active' : ''; ?>" title="Search"><i class="fas fa-search" style="font-size:0.75rem;margin-right:0.3rem;"></i>Search</a>
-                <a href="<?php echo $baseUrl; ?>/help.php" class="<?php echo $currentPage === 'help.php' ? 'active' : ''; ?>"><i class="fas fa-question-circle" style="font-size:0.75rem;margin-right:0.3rem;"></i>Help</a>
             </nav>
             <?php endif; ?>
 
             <div class="modern-header-actions">
                 <?php if ($isLoggedIn): ?>
-                <!-- User menu -->
-                <div class="nh-user" onclick="toggleProfileDropdown(event)">
-                    <div class="nh-avatar"><?php echo strtoupper(substr($userData['name'] ?? $userData['username'] ?? 'U', 0, 1)); ?></div>
-                    <span class="nh-user-name"><?php echo htmlspecialchars($userData['name'] ?? $userData['username']); ?></span>
+                <a href="<?php echo $baseUrl; ?>/search.php" class="nh-icon-btn nh-search-btn <?php echo $currentPage === 'search.php' ? 'active' : ''; ?>" aria-label="Search" title="Search"><i class="fas fa-magnifying-glass"></i></a>
+                <div class="nh-user" onclick="toggleProfileDropdown(event)" role="button" tabindex="0" aria-haspopup="menu" aria-label="Account menu">
+                    <div class="nh-avatar"><?php echo htmlspecialchars($navInitial); ?></div>
+                    <span class="nh-user-name"><?php echo htmlspecialchars($navDisplayName); ?></span>
                     <i class="fas fa-chevron-down nh-chevron"></i>
-
-                    <div id="profileDropdown" class="nh-dropdown hidden">
+                    <div id="profileDropdown" class="nh-dropdown hidden" role="menu">
                         <div class="nh-dropdown-head">
-                            <strong><?php echo htmlspecialchars($userData['name'] ?? $userData['username']); ?></strong>
-                            <span><?php echo isset($userData['role']) && $userData['role'] === 'admin' ? 'Administrator' : 'RZM'; ?></span>
+                            <strong><?php echo htmlspecialchars($navDisplayName); ?></strong>
+                            <span><?php echo $navRoleLabel; ?><?php echo !empty($userData['region']) ? ' · ' . htmlspecialchars($userData['region']) : ''; ?></span>
                         </div>
-                        <a href="<?php echo $baseUrl; ?>/profile.php"><i class="fas fa-user-circle"></i> Account &amp; Profile</a>
-                        <a href="<?php echo $baseUrl; ?>/pages/reports/list.php"><i class="fas fa-list"></i> My Reports</a>
-                        <?php if (!isset($userData['role']) || $userData['role'] === 'user' || $userData['role'] === 'admin'): ?>
-                        <a href="<?php echo $baseUrl; ?>/pages/reports/create.php"><i class="fas fa-paper-plane"></i> Submit Report</a>
-                        <?php endif; ?>
-                        <a href="<?php echo $baseUrl; ?>/search.php"><i class="fas fa-search"></i> Search</a>
-                        <a href="<?php echo $baseUrl; ?>/pages/analytics.php"><i class="fas fa-chart-area"></i> Analytics</a>
-                        <a href="<?php echo $baseUrl; ?>/distribution/dashboard"><i class="fas fa-hands-helping"></i> Distribution</a>
-                        <a href="<?php echo $baseUrl; ?>/help.php"><i class="fas fa-question-circle"></i> Help &amp; Support</a>
-                        <?php if (isset($userData['role']) && $userData['role'] === 'admin'): ?>
+                        <a href="<?php echo $baseUrl; ?>/profile.php"><i class="fas fa-circle-user"></i> Profile &amp; KingsChat</a>
+                        <a href="<?php echo $baseUrl; ?>/help.php"><i class="fas fa-circle-question"></i> Help</a>
                         <hr class="nh-divider">
-                        <a href="<?php echo $baseUrl; ?>/admin/dashboard.php"><i class="fas fa-chart-bar"></i> Admin Statistics</a>
-                        <a href="<?php echo $baseUrl; ?>/admin/users.php"><i class="fas fa-users"></i> User Management</a>
-                        <a href="<?php echo $baseUrl; ?>/admin/settings.php"><i class="fas fa-cog"></i> Settings</a>
-                        <?php endif; ?>
-                        <hr class="nh-divider">
-                        <a href="<?php echo $baseUrl; ?>/logout.php" class="danger" data-link-loading><i class="fas fa-sign-out-alt"></i> Sign Out</a>
+                        <a href="<?php echo $baseUrl; ?>/logout.php" class="danger" data-link-loading><i class="fas fa-arrow-right-from-bracket"></i> Sign out</a>
                     </div>
                 </div>
-
-                <!-- Mobile menu button -->
-                <button class="nh-mobile-btn" onclick="toggleMobileMenu(event)" aria-label="Menu">
+                <button class="nh-icon-btn nh-mobile-btn" onclick="toggleMobileMenu(event)" aria-label="Open menu" aria-controls="mobileMenu">
                     <i class="fas fa-bars"></i>
                 </button>
                 <?php else: ?>
-                <a href="<?php echo $baseUrl; ?>/login.php" class="modern-button modern-button-primary" style="font-size:0.8125rem;">
-                    Login
-                </a>
+                <a href="<?php echo $baseUrl; ?>/login.php" class="modern-button modern-button-primary btn-sm">Sign in</a>
                 <?php endif; ?>
             </div>
         </div>
     </header>
 
     <?php if ($isLoggedIn): ?>
-    <!-- Modern Mobile Menu -->
     <div class="modern-mobile-menu" id="mobileMenu">
         <div class="modern-mobile-menu-user">
-            <div class="modern-user-avatar">
-                <?php echo strtoupper(substr($userData['name'] ?? $userData['username'] ?? 'U', 0, 1)); ?>
-            </div>
+            <div class="modern-user-avatar"><?php echo htmlspecialchars($navInitial); ?></div>
             <div>
-                <div class="text-base font-medium text-gray-800">
-                    <?php echo htmlspecialchars($userData['name'] ?? $userData['username']); ?>
-                </div>
-                <?php if (isset($userData['role']) && $userData['role'] === 'admin'): ?>
-                <div class="modern-badge modern-badge-primary mt-1">
-                    Administrator
-                </div>
-                <?php endif; ?>
+                <div style="font-weight:500;"><?php echo htmlspecialchars($navDisplayName); ?></div>
+                <div class="meta"><?php echo $navRoleLabel; ?></div>
             </div>
         </div>
-        
-        <div class="modern-mobile-menu-nav">
-            <a href="<?php echo $baseUrl; ?>/dashboard.php"
-               class="modern-mobile-menu-item <?php echo $currentPage === 'dashboard.php' && strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') === false ? 'active' : ''; ?>">
-                <i class="fas fa-home"></i> Dashboard
-            </a>
-            <?php if (!isset($userData['role']) || $userData['role'] === 'user' || $userData['role'] === 'admin'): ?>
-            <a href="<?php echo $baseUrl; ?>/pages/reports/create.php"
-               class="modern-mobile-menu-item <?php echo $currentPage === 'create.php' ? 'active' : ''; ?>">
-                <i class="fas fa-paper-plane"></i> Submit Report
-            </a>
-            <?php endif; ?>
-            <a href="<?php echo $baseUrl; ?>/pages/reports/list.php"
-               class="modern-mobile-menu-item <?php echo $currentPage === 'list.php' ? 'active' : ''; ?>">
-                <i class="fas fa-list"></i> My Reports
-            </a>
-            <a href="<?php echo $baseUrl; ?>/pages/analytics.php"
-               class="modern-mobile-menu-item <?php echo $currentPage === 'analytics.php' ? 'active' : ''; ?>">
-                <i class="fas fa-chart-area"></i> Analytics
-            </a>
-            <?php if (isset($userData['role']) && $userData['role'] === 'admin'): ?>
-            <a href="<?php echo $baseUrl; ?>/admin/dashboard.php"
-               class="modern-mobile-menu-item <?php echo strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/dashboard') !== false ? 'active' : ''; ?>">
-                <i class="fas fa-chart-bar"></i> Admin Statistics
-            </a>
-            <a href="<?php echo $baseUrl; ?>/admin/users.php"
-               class="modern-mobile-menu-item <?php echo strpos($currentPage, 'users.php') !== false ? 'active' : ''; ?>">
-                <i class="fas fa-users"></i> User Management
-            </a>
-            <?php endif; ?>
-            <a href="<?php echo $baseUrl; ?>/profile.php"
-               class="modern-mobile-menu-item <?php echo $currentPage === 'profile.php' ? 'active' : ''; ?>">
-                <i class="fas fa-user-circle"></i> Account &amp; Profile
-            </a>
-            <a href="<?php echo $baseUrl; ?>/search.php"
-               class="modern-mobile-menu-item <?php echo $currentPage === 'search.php' ? 'active' : ''; ?>">
-                <i class="fas fa-search"></i> Search
-            </a>
-            <a href="<?php echo $baseUrl; ?>/help.php"
-               class="modern-mobile-menu-item <?php echo $currentPage === 'help.php' ? 'active' : ''; ?>">
-                <i class="fas fa-question-circle"></i> Help &amp; Support
-            </a>
-        </div>
-        
+        <nav class="modern-mobile-menu-nav" aria-label="Mobile">
+            <?php foreach ($navPrimaryNav as [$navLabel, $navHref, $navIcon, $navMatch]): ?>
+            <a href="<?php echo $baseUrl . $navHref; ?>" class="modern-mobile-menu-item <?php echo $navNavActive($navMatch); ?>"><i class="fas <?php echo $navIcon; ?>"></i><?php echo htmlspecialchars($navLabel); ?><?php if ($navLabel === 'People' && $navPendingApprovals > 0): ?> <span class="nh-count" style="margin-left:auto;"><?php echo $navPendingApprovals; ?></span><?php endif; ?></a>
+            <?php endforeach; ?>
+            <div class="modern-mobile-menu-section">More</div>
+            <?php foreach ($navMoreNav as [$navLabel, $navHref, $navIcon]): ?>
+            <a href="<?php echo $baseUrl . $navHref; ?>" class="modern-mobile-menu-item"><i class="fas <?php echo $navIcon; ?>"></i><?php echo htmlspecialchars($navLabel); ?></a>
+            <?php endforeach; ?>
+            <a href="<?php echo $baseUrl; ?>/search.php" class="modern-mobile-menu-item <?php echo $currentPage === 'search.php' ? 'active' : ''; ?>"><i class="fas fa-magnifying-glass"></i>Search</a>
+            <a href="<?php echo $baseUrl; ?>/profile.php" class="modern-mobile-menu-item <?php echo $currentPage === 'profile.php' ? 'active' : ''; ?>"><i class="fas fa-circle-user"></i>Profile &amp; KingsChat</a>
+            <a href="<?php echo $baseUrl; ?>/help.php" class="modern-mobile-menu-item <?php echo $currentPage === 'help.php' ? 'active' : ''; ?>"><i class="fas fa-circle-question"></i>Help</a>
+        </nav>
         <div class="modern-mobile-menu-footer">
-            <a href="<?php echo $baseUrl; ?>/logout.php" class="modern-button modern-button-danger w-full" data-link-loading>
-                <i class="fas fa-sign-out-alt mr-2"></i> Logout
-            </a>
+            <a href="<?php echo $baseUrl; ?>/logout.php" class="modern-button modern-button-danger btn-block" data-link-loading><i class="fas fa-arrow-right-from-bracket"></i> Sign out</a>
         </div>
     </div>
     <?php endif; ?>
 
-    <?php if ($isLoggedIn && (!isset($userData['role']) || $userData['role'] === 'user' || $userData['role'] === 'admin') && $currentPage !== 'create.php'): ?>
+    <?php if ($isLoggedIn && ($navRole === ROLE_RZM || $navIsAdminRole) && $currentPage !== 'create.php'): ?>
     <?php
-    // Determine if current month is already submitted for the action bar
+    // Reminder band: only while this month's report is outstanding
     $actionBarShowSubmit = true;
     try {
-        $dbAB = new Database(); $connAB = $dbAB->getConnection();
-        $stmtAB = $connAB->prepare("SELECT id FROM reports WHERE user_id = ? AND DATE_FORMAT(report_month,'%Y-%m') = ?");
+        $stmtAB = (new Database())->getConnection()->prepare("SELECT id FROM reports WHERE user_id = ? AND DATE_FORMAT(report_month,'%Y-%m') = ?");
         $stmtAB->execute([$_SESSION['user_id'], date('Y-m')]);
         if ($stmtAB->fetch()) $actionBarShowSubmit = false;
-    } catch (Exception $eAB) {}
+    } catch (Exception $eAB) {
+        error_log('Action bar check failed: ' . $eAB->getMessage());
+    }
     ?>
-    <?php if ($actionBarShowSubmit): ?>
-    <div id="action-bar" style="background:var(--primary-600);color:#fff;padding:0.45rem 1.25rem;display:flex;align-items:center;gap:0.75rem;font-size:0.8rem;position:sticky;top:var(--header-height,3.5rem);z-index:900;">
-        <i class="fas fa-exclamation-circle" style="opacity:0.85;flex-shrink:0;"></i>
-        <span>You haven't submitted your <strong><?php echo date('F Y'); ?></strong> report yet.</span>
-        <a href="<?php echo $baseUrl; ?>/pages/reports/create.php?month=<?php echo date('Y-m'); ?>"
-           style="margin-left:auto;background:#fff;color:var(--primary-700);font-size:0.75rem;font-weight:600;padding:0.3rem 0.85rem;border-radius:9999px;text-decoration:none;white-space:nowrap;flex-shrink:0;"
-           data-link-loading>
-            Submit Now <i class="fas fa-arrow-right" style="margin-left:0.25rem;font-size:0.7rem;"></i>
-        </a>
-        <button onclick="this.parentElement.style.display='none'" style="background:none;border:none;color:#fff;opacity:0.6;cursor:pointer;padding:0 0.25rem;flex-shrink:0;font-size:0.85rem;" title="Dismiss">&times;</button>
+    <?php if ($actionBarShowSubmit && $navRole === ROLE_RZM && $currentPage !== 'dashboard.php'): ?>
+    <div id="action-bar" class="action-bar" role="status">
+        <i class="fas fa-circle-info" aria-hidden="true"></i>
+        <span>Your <strong><?php echo date('F Y'); ?></strong> report hasn't been submitted yet.</span>
+        <a href="<?php echo $baseUrl; ?>/pages/reports/create.php?month=<?php echo date('Y-m'); ?>" class="modern-button modern-button-primary btn-sm action-bar-cta" data-link-loading>Submit now <i class="fas fa-arrow-right"></i></a>
+        <button type="button" class="action-bar-dismiss" onclick="this.parentElement.hidden = true" aria-label="Dismiss reminder">&times;</button>
     </div>
     <?php endif; ?>
     <?php endif; ?>
@@ -864,8 +513,6 @@ document.addEventListener('DOMContentLoaded', function() {
             showCancelButton: true,
             confirmButtonText: '<i class="fas fa-link mr-1"></i> Link Now',
             cancelButtonText: 'Maybe Later',
-            confirmButtonColor: '#3b82f6',
-            cancelButtonColor: '#6b7280',
             footer: '<a href="<?php echo $baseUrl; ?>/profile.php" class="text-xs text-gray-500 hover:text-gray-700">You can also link from your profile page</a>'
         }).then(function(result) {
             if (result.isConfirmed) {

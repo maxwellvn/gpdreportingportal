@@ -222,7 +222,7 @@ try {
         SELECT u.id, u.name, u.username, u.region, u.zone
         FROM users u
         WHERE u.active = 1
-          AND u.role = 'user'
+          AND u.role = 'rzm'
           AND u.id NOT IN (
               SELECT r.user_id FROM reports r
               WHERE DATE_FORMAT(r.report_month, '%Y-%m') = :ym
@@ -251,7 +251,7 @@ try {
         LEFT JOIN reports r
             ON r.user_id = u.id
             AND DATE_FORMAT(r.report_month, '%Y-%m') IN ($placeholders6)
-        WHERE u.active = 1 AND u.role = 'user'
+        WHERE u.active = 1 AND u.role = 'rzm'
         GROUP BY u.id
         HAVING months_missed >= 2
         ORDER BY months_missed DESC, u.name ASC
@@ -318,10 +318,9 @@ $zones = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
 $availableYearsQuery = "SELECT DISTINCT YEAR(report_month) AS report_year FROM reports ORDER BY report_year DESC";
 $availableYears = $conn->query($availableYearsQuery)->fetchAll(PDO::FETCH_COLUMN);
-$currentYear = date('Y');
-if (!in_array($currentYear, $availableYears, true)) {
-    array_unshift($availableYears, $currentYear);
-}
+$currentYear = (int)date('Y');
+$availableYears = array_values(array_unique(array_merge([$currentYear], array_map('intval', $availableYears))));
+rsort($availableYears);
 $availableMonths = [
     '1' => 'January',
     '2' => 'February',
@@ -341,512 +340,469 @@ $availableMonths = [
 require_once '../layouts/header.php';
 ?>
 
+
 <style>
-.ad-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
-.ad-topbar { margin-bottom: 1.75rem; }
-.ad-topbar h1 { font-size: 1.125rem; font-weight: 700; color: var(--neutral-900); margin: 0 0 0.2rem; }
-.ad-topbar p { font-size: 0.85rem; color: var(--neutral-500); margin: 0 0 0.25rem; }
-.ad-period { font-size: 0.8rem; font-weight: 600; color: var(--primary-600); }
-.ad-section { border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: #fff; margin-bottom: 1.25rem; overflow: hidden; }
-/* Compliance panels */
-.ad-compliance-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem; }
-@media(max-width:768px){ .ad-compliance-grid { grid-template-columns:1fr; } }
-.ad-comp-panel { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; overflow:hidden; }
-.ad-comp-head { padding:0.85rem 1.25rem; border-bottom:1px solid var(--neutral-200); display:flex; align-items:center; justify-content:space-between; gap:0.75rem; }
-.ad-comp-head h2 { font-size:0.875rem; font-weight:600; color:var(--neutral-900); margin:0; text-transform:uppercase; letter-spacing:0.04em; }
-.ad-comp-count { font-size:0.75rem; font-weight:600; padding:0.15rem 0.55rem; border-radius:9999px; }
-.ad-comp-count-warn { background:var(--warning-100); color:var(--warning-700); }
-.ad-comp-count-danger { background:var(--danger-100); color:var(--danger-700); }
-.ad-comp-count-ok { background:var(--success-100); color:var(--success-700); }
-.ad-comp-list { max-height:16rem; overflow-y:auto; }
-.ad-comp-row { display:flex; align-items:center; gap:0.6rem; padding:0.6rem 1.1rem; border-bottom:1px solid var(--neutral-100); font-size:0.8125rem; }
-.ad-comp-row:last-child { border-bottom:none; }
-.ad-comp-row:hover { background:var(--neutral-50); }
-.ad-comp-name { flex:1; font-weight:500; color:var(--neutral-800); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ad-comp-sub { font-size:0.72rem; color:var(--neutral-400); display:block; }
-.ad-comp-empty { padding:2rem 1.25rem; text-align:center; font-size:0.8125rem; color:var(--neutral-400); }
-.ad-comp-empty i { display:block; font-size:1.5rem; color:var(--neutral-300); margin-bottom:0.4rem; }
-/* Reminder modal */
-.ad-reminder-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9000; align-items:center; justify-content:center; padding:1rem; }
-.ad-reminder-modal.open { display:flex; }
-.ad-reminder-box { background:#fff; border-radius:var(--radius-xl); width:100%; max-width:26rem; padding:1.5rem; box-shadow:var(--shadow-xl); }
-.ad-reminder-box h3 { font-size:1rem; font-weight:700; color:var(--neutral-900); margin:0 0 0.25rem; }
-.ad-reminder-box p { font-size:0.8125rem; color:var(--neutral-500); margin:0 0 1rem; }
-.ad-reminder-label { font-size:0.78rem; font-weight:600; color:var(--neutral-700); margin-bottom:0.3rem; display:block; }
-/* Toast display in admin */
-.ad-toast-bar { position:fixed; bottom:1.5rem; right:1.5rem; z-index:8000; display:flex; flex-direction:column; gap:0.5rem; pointer-events:none; }
-.ad-section-head { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; justify-content: space-between; }
-.ad-section-head h2 { font-size: 0.875rem; font-weight: 600; color: var(--neutral-900); margin: 0; text-transform: uppercase; letter-spacing: 0.04em; }
-.ad-section-body { padding: 1.25rem; }
-.ad-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px; background: var(--neutral-200); }
-.ad-metric { background: #fff; padding: 1rem 1.1rem; }
-.ad-metric-label { font-size: 0.75rem; color: var(--neutral-500); margin-bottom: 0.2rem; line-height: 1.3; }
-.ad-metric-value { font-size: 1.35rem; font-weight: 700; color: var(--neutral-900); line-height: 1.15; overflow-wrap: anywhere; }
-.ad-metric-note { font-size: 0.75rem; color: var(--neutral-400); margin-top: 0.2rem; }
-.ad-filter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.875rem; }
-@media(max-width:768px){ .ad-filter-grid { grid-template-columns: repeat(2,1fr); } }
-@media(max-width:480px){ .ad-filter-grid { grid-template-columns: 1fr; } }
-.ad-filter-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; align-items: center; }
-.ad-compliance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--neutral-200); margin-bottom: 1px; }
-.ad-compliance-cell { background: #fff; padding: 1rem 1.25rem; }
-.ad-compliance-cell h3 { font-size: 0.75rem; font-weight: 600; color: var(--neutral-500); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.35rem; }
-.ad-compliance-cell p { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.15rem; }
-.ad-compliance-cell span { font-size: 0.8rem; color: var(--neutral-500); }
-.ad-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-.ad-table th { padding: 0.65rem 1rem; text-align: left; font-size: 0.7rem; font-weight: 600; color: var(--neutral-500); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--neutral-200); }
-.ad-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--neutral-100); color: var(--neutral-800); }
-.ad-table tr:last-child td { border-bottom: none; }
-.ad-table tbody tr:hover td { background: var(--neutral-50); }
-
-/* ── Regional milestones ── */
-.ad-milestone-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.75rem; }
-.ad-milestone-card { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; padding:0.9rem 1rem; }
-.ad-milestone-card h4 { font-size:0.78rem; font-weight:700; color:var(--neutral-800); margin:0 0 0.55rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ad-milestone-bar-track { height:7px; background:var(--neutral-100); border-radius:4px; overflow:hidden; margin-bottom:0.35rem; }
-.ad-milestone-bar-fill  { height:100%; border-radius:4px; transition:width 0.6s ease; }
-.ad-milestone-meta { display:flex; justify-content:space-between; font-size:0.7rem; color:var(--neutral-500); }
-.ad-milestone-meta strong { color:var(--neutral-800); }
-
-/* ── Team progress board ── */
-.ad-team-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:0.6rem; }
-.ad-team-card { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; padding:0.75rem 0.85rem; text-align:center; }
-.ad-team-rate { font-size:1.3rem; font-weight:800; line-height:1.1; }
-.ad-team-zone { font-size:0.68rem; font-weight:600; color:var(--neutral-700); margin:0.2rem 0 0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ad-team-sub  { font-size:0.65rem; color:var(--neutral-400); }
-.ad-team-card.top1 { border-color:#fde68a; background:#fefce8; }
-.ad-team-card.top2 { border-color:#e2e8f0; background:#f8fafc; }
-.ad-team-card.top3 { border-color:#fed7aa; background:#fff7ed; }
-.ad-team-card.zero { border-color:var(--danger-100); background:var(--danger-50); }
+/* Page-local: filter disclosure, compact people lists, progress bars, reminder dialog */
+.ad-filterbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-3); margin-bottom: var(--spacing-6); }
+.ad-period { margin-bottom: 0; }
+.ad-period button { display: inline-flex; align-items: center; gap: 0.375rem; }
+.ad-period button i { font-size: 0.625rem; }
+.ad-scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); }
+.ad-scope .input { width: auto; min-width: 11rem; max-width: 16rem; min-height: 2.25rem; padding-top: 0.375rem; padding-bottom: 0.375rem; border-radius: var(--radius-full); }
+.ad-custom { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--spacing-3); padding: var(--spacing-4); background: var(--mist); border-radius: var(--radius-lg); }
+.ad-custom .field { margin: 0; flex: 1 1 9rem; }
+.ad-custom-or { align-self: center; padding-top: 1.25rem; font-size: var(--text-xs); color: var(--neutral-500); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 640px) { .ad-scope, .ad-scope .input { width: 100%; max-width: none; } .ad-period { width: 100%; overflow-x: auto; } }
+.ad-scroll { max-height: 28rem; overflow-y: auto; }
+.ad-list { max-height: 18rem; overflow-y: auto; }
+.ad-row { display: flex; align-items: center; gap: var(--spacing-3); padding: 0.75rem var(--spacing-6); border-bottom: 1px solid var(--neutral-200); font-size: var(--text-sm); }
+.ad-row:last-child { border-bottom: 0; }
+.ad-row-main { flex: 1; min-width: 0; }
+.ad-row-name { display: block; font-weight: 500; color: var(--neutral-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-row-sub { display: block; font-size: var(--text-xs); color: var(--neutral-600); }
+.ad-bar { height: 4px; background: var(--neutral-100); border-radius: var(--radius-full); overflow: hidden; margin: var(--spacing-3) 0 var(--spacing-2); }
+.ad-bar > span { display: block; height: 100%; background: var(--neutral-900); border-radius: inherit; }
+.ad-bar.is-low > span { background: var(--warning-500); }
+.ad-tile { padding: var(--spacing-4) var(--spacing-5); }
+.ad-tile-title { font-size: var(--text-sm); font-weight: 500; color: var(--neutral-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-tile-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--spacing-2); font-size: var(--text-xs); color: var(--neutral-600); }
+.ad-dialog { width: min(26rem, calc(100vw - 2rem)); padding: 0; border: 1px solid var(--neutral-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); color: var(--neutral-900); }
+.ad-dialog::backdrop { background: rgba(16, 33, 38, 0.45); }
+.ad-dialog .panel-body p { margin-bottom: var(--spacing-4); }
+@media (max-width: 640px) { .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stat { padding: var(--spacing-4); min-height: 5.5rem; } .stat-value { font-size: 1.375rem; } }
 </style>
 
-<div class="ad-page">
-    <div class="ad-topbar">
-        <h1>Admin Dashboard</h1>
-        <p>Overview of reports, zone compliance, and sponsorship statistics</p>
-        <div class="ad-period">Reporting Period: <?php echo htmlspecialchars(formatDashboardPeriodLabel($filterDateFrom, $filterDateTo)); ?></div>
+<?php
+$pdfParams = [];
+if (!empty($filterYear))     $pdfParams[] = 'filter_year=' . urlencode($filterYear);
+if (!empty($filterMonth))    $pdfParams[] = 'filter_month=' . urlencode($filterMonth);
+if (!empty($filterDateFrom)) $pdfParams[] = 'date_from=' . urlencode($filterDateFrom);
+if (!empty($filterDateTo))   $pdfParams[] = 'date_to='   . urlencode($filterDateTo);
+if (!empty($filterRegion))   $pdfParams[] = 'region='    . urlencode($filterRegion);
+if (!empty($filterZone))     $pdfParams[] = 'zone='      . urlencode($filterZone);
+$pdfHref = 'generate_pdf_report.php' . (!empty($pdfParams) ? '?' . implode('&', $pdfParams) : '');
+$periodLabel = formatDashboardPeriodLabel($filterDateFrom, $filterDateTo);
+$hasFilters = $filterYear !== '' || $filterMonth !== '' || $filterDateFrom !== '' || $filterDateTo !== '' || $filterRegion !== '' || $filterZone !== '';
+$nonCompliant = ($complianceData['total_zones'] ?? 0) - ($complianceData['compliant_zones'] ?? 0);
+$flashSuccess = $_SESSION['success'] ?? null;
+$flashError = $_SESSION['error'] ?? null;
+unset($_SESSION['success'], $_SESSION['error']);
+?>
+
+<div class="page-head">
+    <div>
+        <div class="page-eyebrow">Period · <?php echo htmlspecialchars($periodLabel); ?><?php echo $filterRegion !== '' ? ' · ' . htmlspecialchars($filterRegion) : ''; ?><?php echo $filterZone !== '' ? ' · ' . htmlspecialchars($filterZone) : ''; ?></div>
+        <h1 class="page-title">Statistics</h1>
+        <p class="page-sub">Reports, zone compliance and sponsorship across the network.</p>
     </div>
-
-    <!-- Filters -->
-    <div class="ad-section">
-        <div class="ad-section-head"><h2>Filters</h2></div>
-        <div class="ad-section-body">
-            <form method="GET" id="filterForm">
-                <div class="ad-filter-grid">
-                    <div class="modern-form-group">
-                        <label for="filter_year" class="modern-form-label">Year</label>
-                        <select id="filter_year" name="filter_year" class="modern-form-input">
-                            <option value="">Any Year</option>
-                            <?php foreach ($availableYears as $year): ?>
-                            <option value="<?php echo htmlspecialchars((string)$year); ?>" <?php echo (string)$filterYear === (string)$year ? 'selected' : ''; ?>><?php echo htmlspecialchars((string)$year); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="modern-form-group">
-                        <label for="filter_month" class="modern-form-label">Month</label>
-                        <select id="filter_month" name="filter_month" class="modern-form-input">
-                            <option value="">All Months</option>
-                            <?php foreach ($availableMonths as $monthValue => $monthLabel): ?>
-                            <option value="<?php echo htmlspecialchars($monthValue); ?>" <?php echo (string)(int)$filterMonth === (string)(int)$monthValue ? 'selected' : ''; ?>><?php echo htmlspecialchars($monthLabel); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="modern-form-group">
-                        <label for="date_from" class="modern-form-label">Start Date</label>
-                        <input type="date" id="date_from" name="date_from" value="<?php echo htmlspecialchars($filterDateFrom); ?>" class="modern-form-input">
-                    </div>
-                    <div class="modern-form-group">
-                        <label for="date_to" class="modern-form-label">End Date</label>
-                        <input type="date" id="date_to" name="date_to" value="<?php echo htmlspecialchars($filterDateTo); ?>" class="modern-form-input">
-                    </div>
-                    <div class="modern-form-group">
-                        <label for="region" class="modern-form-label">Region</label>
-                        <select id="region" name="region" class="modern-form-input">
-                            <option value="">All Regions</option>
-                            <?php foreach ($regions as $region): ?>
-                            <option value="<?php echo htmlspecialchars($region); ?>" <?php echo $filterRegion === $region ? 'selected' : ''; ?>><?php echo htmlspecialchars($region); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="modern-form-group">
-                        <label for="zone" class="modern-form-label">Zone</label>
-                        <select id="zone" name="zone" class="modern-form-input">
-                            <option value="">All Zones</option>
-                            <?php foreach ($zones as $zone): ?>
-                            <option value="<?php echo htmlspecialchars($zone); ?>" <?php echo $filterZone === $zone ? 'selected' : ''; ?>><?php echo htmlspecialchars($zone); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-                <p style="font-size:0.75rem;color:var(--neutral-400);margin:0.75rem 0 0;">Selecting a month and year targets that report month. Use date fields only for a custom range.</p>
-                <div class="ad-filter-actions">
-                    <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;">Apply Filters</button>
-                    <a href="dashboard.php" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">Clear</a>
-                    <a href="generate_pdf_report.php<?php
-                        $pdfParams = [];
-                        if (!empty($filterYear))     $pdfParams[] = 'filter_year=' . urlencode($filterYear);
-                        if (!empty($filterMonth))    $pdfParams[] = 'filter_month=' . urlencode($filterMonth);
-                        if (!empty($filterDateFrom)) $pdfParams[] = 'date_from=' . urlencode($filterDateFrom);
-                        if (!empty($filterDateTo))   $pdfParams[] = 'date_to='   . urlencode($filterDateTo);
-                        if (!empty($filterRegion))   $pdfParams[] = 'region='    . urlencode($filterRegion);
-                        if (!empty($filterZone))     $pdfParams[] = 'zone='      . urlencode($filterZone);
-                        echo !empty($pdfParams) ? '?' . implode('&', $pdfParams) : '';
-                    ?>" class="modern-button" style="font-size:0.8125rem;background:var(--danger-600);color:#fff;border-color:var(--danger-600);">
-                        <i class="fas fa-file-pdf modern-button-icon"></i> Export PDF
-                    </a>
-                </div>
-            </form>
-        </div>
+    <div class="page-actions">
+        <a href="<?php echo htmlspecialchars($pdfHref); ?>" class="btn btn-primary"><i class="fas fa-file-pdf" aria-hidden="true"></i> Export PDF</a>
     </div>
-
-    <!-- Key Metrics -->
-    <div class="ad-section">
-        <div class="ad-section-head"><h2>Key Metrics</h2></div>
-        <div class="ad-metric-grid">
-            <div class="ad-metric"><div class="ad-metric-label">Reports Submitted</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_reports'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Zones with Reports</div><div class="ad-metric-value"><?php echo number_format($reportStats['unique_zones'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Avg. Visits / Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['avg_visits_per_month'] ?? 0, 1); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Avg. Unique Visitors / Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['avg_unique_visitors_per_month'] ?? 0, 1); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Visits This Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['visits_this_month'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Unique Visitors This Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['unique_visitors_this_month'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Reports This Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['posts_this_month'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Copies Sponsored</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_copies'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Total Distributions</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_distribution'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Souls Won</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_souls'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">New Partners</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_new_partners'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Rhapsody Cells</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_rhapsody_cells'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">New Churches</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_new_churches'] ?? 0); ?></div></div>
-            <div class="ad-metric"><div class="ad-metric-label">Compliance Rate</div><div class="ad-metric-value"><?php echo number_format($complianceData['compliance_rate'] ?? 0, 1); ?>%</div><div class="ad-metric-note"><?php echo number_format($complianceData['compliant_zones'] ?? 0); ?> of <?php echo number_format($complianceData['total_zones'] ?? 0); ?> zones</div></div>
-        </div>
-    </div>
-
-    <!-- Monthly Breakdown -->
-    <div class="ad-section">
-        <div class="ad-section-head">
-            <h2>Monthly Breakdown<?php echo (!empty($filterDateFrom) || !empty($filterDateTo)) ? ' &mdash; ' . htmlspecialchars(formatDashboardPeriodLabel($filterDateFrom, $filterDateTo)) : ' &mdash; All Time'; ?></h2>
-        </div>
-        <?php if (!empty($monthlyBreakdown)): ?>
-        <div style="overflow-x:auto;">
-            <table class="ad-table">
-                <thead><tr>
-                    <th>Month</th><th>Reports</th><th>Copies Sponsored</th><th>Souls Won</th>
-                </tr></thead>
-                <tbody>
-                    <?php foreach ($monthlyBreakdown as $month): ?>
-                    <tr>
-                        <td style="font-weight:500;"><?php echo htmlspecialchars($month['month_name']); ?></td>
-                        <td><?php echo number_format($month['report_count']); ?></td>
-                        <td><?php echo number_format($month['total_copies'] ?? 0); ?></td>
-                        <td><?php echo number_format($month['total_souls'] ?? 0); ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php else: ?>
-        <div style="padding:1.25rem;font-size:0.85rem;color:var(--neutral-500);">No reports found for the selected period.</div>
-        <?php endif; ?>
-    </div>
-
-    <!-- Zone Compliance -->
-    <div class="ad-section">
-        <div class="ad-section-head">
-            <h2>Zone Compliance</h2>
-            <a href="zone_compliance.php" style="font-size:0.8rem;color:var(--primary-600);text-decoration:none;">View Details &rarr;</a>
-        </div>
-        <div class="ad-compliance-grid">
-            <div class="ad-compliance-cell" style="border-right:1px solid var(--neutral-200);">
-                <h3>Compliant Zones</h3>
-                <p style="color:var(--success-700);"><?php echo $complianceData['compliant_zones'] ?? 0; ?></p>
-                <span>Zones with reports submitted</span>
-            </div>
-            <div class="ad-compliance-cell">
-                <h3>Non-Compliant Zones</h3>
-                <p style="color:var(--danger-700);"><?php echo ($complianceData['total_zones'] ?? 0) - ($complianceData['compliant_zones'] ?? 0); ?></p>
-                <span>Zones without reports</span>
-            </div>
-        </div>
-        <?php if (!empty($zoneBreakdown)): ?>
-        <div style="overflow-x:auto;">
-            <table class="ad-table">
-                <thead><tr>
-                    <th>Zone</th><th>Region</th><th>Reports</th><th>Copies Sponsored</th><th>Status</th>
-                </tr></thead>
-                <tbody>
-                    <?php foreach ($zoneBreakdown as $zone): ?>
-                    <tr>
-                        <td style="font-weight:500;"><?php echo htmlspecialchars($zone['zone'] ?? 'Unknown'); ?></td>
-                        <td><?php echo htmlspecialchars($zone['region'] ?? 'Unknown'); ?></td>
-                        <td><?php echo number_format($zone['report_count'] ?? 0); ?></td>
-                        <td><?php echo number_format($zone['total_copies'] ?? 0); ?></td>
-                        <td><?php if (($zone['report_count'] ?? 0) > 0): ?><span class="modern-badge modern-badge-success">Compliant</span><?php else: ?><span class="modern-badge modern-badge-danger">Non-Compliant</span><?php endif; ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-    </div>
-
-    <!-- ── Compliance Panels ── -->
-    <div class="ad-compliance-grid">
-
-        <!-- Missing this month -->
-        <div class="ad-comp-panel">
-            <div class="ad-comp-head">
-                <h2><i class="fas fa-calendar-times" style="color:var(--danger-500);margin-right:0.35rem;font-size:0.8rem;"></i>No <?php echo date('F'); ?> Report</h2>
-                <span class="ad-comp-count <?php echo count($missingThisMonth) > 0 ? 'ad-comp-count-danger' : 'ad-comp-count-ok'; ?>">
-                    <?php echo count($missingThisMonth); ?> user<?php echo count($missingThisMonth) !== 1 ? 's' : ''; ?>
-                </span>
-            </div>
-            <?php if (empty($missingThisMonth)): ?>
-            <div class="ad-comp-empty"><i class="fas fa-check-circle" style="color:var(--success-400);"></i>All active users have submitted this month!</div>
-            <?php else: ?>
-            <div class="ad-comp-list">
-                <?php foreach ($missingThisMonth as $mu): ?>
-                <div class="ad-comp-row">
-                    <div style="flex:1;min-width:0;">
-                        <span class="ad-comp-name"><?php echo htmlspecialchars($mu['name'] ?: $mu['username']); ?></span>
-                        <span class="ad-comp-sub"><?php echo htmlspecialchars($mu['zone'] ?? ''); ?><?php if (!empty($mu['region'])): ?> &middot; <?php echo htmlspecialchars($mu['region']); ?><?php endif; ?></span>
-                    </div>
-                    <button onclick="openReminder(<?php echo (int)$mu['id']; ?>, '<?php echo htmlspecialchars(addslashes($mu['name'] ?: $mu['username'])); ?>')"
-                            class="modern-button modern-button-secondary" style="font-size:0.7rem;padding:0.2rem 0.55rem;flex-shrink:0;" title="Send Reminder">
-                        <i class="fas fa-bell"></i>
-                    </button>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <div style="padding:0.65rem 1.1rem;border-top:1px solid var(--neutral-100);display:flex;gap:0.5rem;flex-wrap:wrap;">
-                <button onclick="openReminder(0, 'all pending users')" class="modern-button modern-button-primary" style="font-size:0.75rem;">
-                    <i class="fas fa-bullhorn modern-button-icon"></i> Broadcast Reminder
-                </button>
-                <a href="<?php echo BASE_URL; ?>/search.php?q=<?php echo urlencode(date('F')); ?>" class="modern-button modern-button-secondary" style="font-size:0.75rem;">View All &rarr;</a>
-            </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- Chronic late submitters -->
-        <div class="ad-comp-panel">
-            <div class="ad-comp-head">
-                <h2><i class="fas fa-clock" style="color:var(--warning-500);margin-right:0.35rem;font-size:0.8rem;"></i>Chronic Late Submitters</h2>
-                <span class="ad-comp-count <?php echo count($chronicLate) > 0 ? 'ad-comp-count-warn' : 'ad-comp-count-ok'; ?>">
-                    <?php echo count($chronicLate); ?> user<?php echo count($chronicLate) !== 1 ? 's' : ''; ?>
-                </span>
-            </div>
-            <div style="padding:0.45rem 1.1rem;background:var(--neutral-50);border-bottom:1px solid var(--neutral-100);font-size:0.7rem;color:var(--neutral-500);">
-                Missed 2+ of the last 6 months
-            </div>
-            <?php if (empty($chronicLate)): ?>
-            <div class="ad-comp-empty"><i class="fas fa-star" style="color:var(--warning-400);"></i>No chronic late submitters — great compliance!</div>
-            <?php else: ?>
-            <div class="ad-comp-list">
-                <?php foreach ($chronicLate as $cl): ?>
-                <div class="ad-comp-row">
-                    <div style="flex:1;min-width:0;">
-                        <span class="ad-comp-name"><?php echo htmlspecialchars($cl['name'] ?: $cl['username']); ?></span>
-                        <span class="ad-comp-sub"><?php echo htmlspecialchars($cl['zone'] ?? ''); ?><?php if (!empty($cl['region'])): ?> &middot; <?php echo htmlspecialchars($cl['region']); ?><?php endif; ?></span>
-                    </div>
-                    <span style="font-size:0.72rem;font-weight:600;color:var(--danger-600);flex-shrink:0;margin-right:0.4rem;"
-                          title="<?php echo (int)$cl['months_submitted']; ?>/6 months submitted">
-                        <?php echo (int)$cl['months_missed']; ?>mo missed
-                    </span>
-                    <button onclick="openReminder(<?php echo (int)$cl['id']; ?>, '<?php echo htmlspecialchars(addslashes($cl['name'] ?: $cl['username'])); ?>')"
-                            class="modern-button modern-button-secondary" style="font-size:0.7rem;padding:0.2rem 0.55rem;flex-shrink:0;" title="Send Reminder">
-                        <i class="fas fa-bell"></i>
-                    </button>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-        </div>
-    </div><!-- /.ad-compliance-grid -->
-
-    <!-- ── Reminder Modal ── -->
-    <div class="ad-reminder-modal" id="reminderModal">
-        <div class="ad-reminder-box">
-            <h3><i class="fas fa-bell" style="color:var(--primary-500);margin-right:0.4rem;"></i>Send Reminder</h3>
-            <p id="reminderModalDesc">Send a reminder to the selected user.</p>
-            <form method="POST" id="reminderForm">
-                <input type="hidden" name="csrf_token" value="<?php echo Security::generateCSRFToken(); ?>">
-                <input type="hidden" name="reminder_action" value="1">
-                <input type="hidden" name="reminder_target_id" id="reminderTargetId" value="0">
-                <div style="margin-bottom:0.85rem;">
-                    <label class="ad-reminder-label">Message</label>
-                    <textarea name="reminder_message" id="reminderMessage" rows="4"
-                              class="modern-form-input" style="resize:vertical;"
-                              placeholder="e.g. Please submit your monthly report — it is now overdue."
-                              required></textarea>
-                </div>
-                <div style="display:flex;gap:0.5rem;justify-content:flex-end;flex-wrap:wrap;">
-                    <button type="button" onclick="closeReminder()" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">Cancel</button>
-                    <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;">
-                        <i class="fas fa-paper-plane modern-button-icon"></i> Send
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Sponsorship -->
-    <div class="ad-section">
-        <div class="ad-section-head"><h2>Sponsorship Statistics</h2></div>
-        <div class="ad-metric-grid">
-            <div class="ad-metric"><div class="ad-metric-label">Active Sponsors</div><div class="ad-metric-value"><?php echo number_format($sponsorshipStats['active_sponsors'] ?? 0); ?></div></div>
-        </div>
-    </div>
-
-    <?php
-    // ── Regional compliance milestones ──────────────────────────────────────
-    $expectedMonthsAdm = (!empty($filterYear) && (int)$filterYear == (int)date('Y'))
-        ? (int)date('n')
-        : ((!empty($filterYear)) ? 12 : (int)date('n'));
-
-    $regionMilestoneParams = [];
-    $regionMilestoneWhere  = "WHERE u.zone IS NOT NULL AND u.zone != '' AND u.region IS NOT NULL AND u.region != ''";
-    if (!empty($filterRegion)) {
-        $regionMilestoneWhere .= " AND u.region = :region";
-        $regionMilestoneParams[':region'] = $filterRegion;
-    }
-    $yearJoinCond = '';
-    if (!empty($filterYear)) {
-        $yearJoinCond = " AND YEAR(r.report_month) = :year";
-        $regionMilestoneParams[':year'] = $filterYear;
-    }
-    $rmStmt = $conn->prepare("
-        SELECT u.region,
-               COUNT(DISTINCT u.zone)                                          AS total_zones,
-               COUNT(DISTINCT CASE WHEN r.id IS NOT NULL THEN u.zone END)      AS zones_submitted,
-               COALESCE(SUM(r.total_copies), 0)                                AS copies,
-               COALESCE(SUM(r.souls_won), 0)                                   AS souls
-        FROM users u
-        LEFT JOIN reports r ON r.user_id = u.id $yearJoinCond
-        $regionMilestoneWhere
-        GROUP BY u.region
-        ORDER BY zones_submitted DESC, copies DESC
-    ");
-    $rmStmt->execute($regionMilestoneParams);
-    $regionMilestones = $rmStmt->fetchAll(PDO::FETCH_ASSOC);
-    ?>
-
-    <!-- Regional Compliance Milestones -->
-    <?php if (!empty($regionMilestones)): ?>
-    <div class="ad-section">
-        <div class="ad-section-head">
-            <h2>Regional Compliance Milestones<?php echo !empty($filterYear) ? ' — ' . htmlspecialchars($filterYear) : ''; ?></h2>
-            <a href="../pages/analytics.php<?php echo !empty($filterYear) ? '?year='.urlencode($filterYear) : ''; ?>" style="font-size:0.78rem;color:var(--primary-600);text-decoration:none;">Full Analytics &rarr;</a>
-        </div>
-        <div class="ad-section-body">
-            <div class="ad-milestone-grid">
-                <?php foreach ($regionMilestones as $rm):
-                    $tz    = max(1, (int)$rm['total_zones']);
-                    $zs    = (int)$rm['zones_submitted'];
-                    $rate  = min(100, round(($zs / $tz) * 100));
-                    $color = $rate >= 80 ? '#10b981' : ($rate >= 50 ? '#f59e0b' : '#ef4444');
-                ?>
-                <div class="ad-milestone-card">
-                    <h4 title="<?php echo htmlspecialchars($rm['region']); ?>"><?php echo htmlspecialchars($rm['region']); ?></h4>
-                    <div class="ad-milestone-bar-track">
-                        <div class="ad-milestone-bar-fill" style="width:<?php echo $rate; ?>%;background:<?php echo $color; ?>;"></div>
-                    </div>
-                    <div class="ad-milestone-meta">
-                        <span><?php echo $zs; ?> / <?php echo $tz; ?> zones</span>
-                        <strong style="color:<?php echo $color; ?>;"><?php echo $rate; ?>%</strong>
-                    </div>
-                    <div class="ad-milestone-meta" style="margin-top:0.25rem;">
-                        <span><?php echo number_format($rm['copies']); ?> copies</span>
-                        <span><?php echo number_format($rm['souls']); ?> souls</span>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php
-    // ── Team progress board (zones ranked by compliance rate) ───────────────
-    $teamParams = [];
-    $teamUserWhere = "u.zone IS NOT NULL AND u.zone != ''";
-    if (!empty($filterRegion)) {
-        $teamUserWhere .= " AND u.region = :region";
-        $teamParams[':region'] = $filterRegion;
-    }
-    $teamYearJoin = '';
-    if (!empty($filterYear)) {
-        $teamYearJoin = " AND YEAR(r.report_month) = :year";
-        $teamParams[':year'] = $filterYear;
-    }
-    $teamStmt = $conn->prepare("
-        SELECT u.zone, u.region,
-               COUNT(DISTINCT DATE_FORMAT(r.report_month,'%Y-%m')) AS months_submitted,
-               COALESCE(SUM(r.total_copies), 0)                    AS copies,
-               COALESCE(SUM(r.souls_won), 0)                       AS souls
-        FROM users u
-        LEFT JOIN reports r ON r.user_id = u.id $teamYearJoin
-        WHERE $teamUserWhere
-        GROUP BY u.zone, u.region
-        ORDER BY months_submitted DESC, copies DESC
-        LIMIT 24
-    ");
-    $teamStmt->execute($teamParams);
-    $teamZones = $teamStmt->fetchAll(PDO::FETCH_ASSOC);
-    ?>
-
-    <!-- Team Progress Board -->
-    <?php if (!empty($teamZones)): ?>
-    <div class="ad-section">
-        <div class="ad-section-head">
-            <h2>Team Progress Board<?php echo !empty($filterRegion) ? ' — '.htmlspecialchars($filterRegion) : ''; ?></h2>
-            <span style="font-size:0.75rem;color:var(--neutral-400);"><?php echo $expectedMonthsAdm; ?> months expected · top <?php echo count($teamZones); ?> zones</span>
-        </div>
-        <div class="ad-section-body">
-            <div class="ad-team-grid">
-                <?php foreach ($teamZones as $ti => $tz):
-                    $rate  = $expectedMonthsAdm > 0 ? min(100, round(((int)$tz['months_submitted'] / $expectedMonthsAdm) * 100)) : 0;
-                    $color = $rate >= 80 ? '#10b981' : ($rate >= 50 ? '#f59e0b' : '#ef4444');
-                    $cardClass = $ti === 0 ? 'top1' : ($ti === 1 ? 'top2' : ($ti === 2 ? 'top3' : ((int)$tz['months_submitted'] === 0 ? 'zero' : '')));
-                    $medal = $ti === 0 ? '🥇' : ($ti === 1 ? '🥈' : ($ti === 2 ? '🥉' : ''));
-                ?>
-                <div class="ad-team-card <?php echo $cardClass; ?>" title="<?php echo htmlspecialchars($tz['zone']); ?> · <?php echo htmlspecialchars($tz['region'] ?? ''); ?>">
-                    <div class="ad-team-rate" style="color:<?php echo $color; ?>;"><?php echo $medal; ?><?php echo $rate; ?>%</div>
-                    <div class="ad-team-zone"><?php echo htmlspecialchars($tz['zone']); ?></div>
-                    <div class="ad-team-sub"><?php echo (int)$tz['months_submitted']; ?>/<?php echo $expectedMonthsAdm; ?> months &middot; <?php echo number_format($tz['copies']); ?> copies</div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
 </div>
 
+<?php if ($flashSuccess): ?>
+<div class="alert alert-success" role="status"><i class="fas fa-check-circle" aria-hidden="true"></i><div><?php echo htmlspecialchars($flashSuccess); ?></div></div>
+<?php endif; ?>
+<?php if ($flashError): ?>
+<div class="alert alert-danger" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div><?php echo htmlspecialchars($flashError); ?></div></div>
+<?php endif; ?>
+
+<!-- Filters: period chips + region/zone, applied on change -->
+<?php
+$rawYear  = trim((string)($_GET['filter_year'] ?? ''));
+$rawMonth = trim((string)($_GET['filter_month'] ?? ''));
+$rawFrom  = trim((string)($_GET['date_from'] ?? ''));
+$rawTo    = trim((string)($_GET['date_to'] ?? ''));
+$thisYear = (string)(int)date('Y');
+$thisMonth = (string)(int)date('n');
+if ($rawYear === '' && $rawMonth === '' && $rawFrom === '' && $rawTo === '') {
+    $activePeriod = 'all';
+} elseif ($rawYear === $thisYear && $rawMonth === '' && $rawFrom === '' && $rawTo === '') {
+    $activePeriod = 'year';
+} elseif ($rawYear === $thisYear && (string)(int)$rawMonth === $thisMonth && $rawFrom === '' && $rawTo === '') {
+    $activePeriod = 'month';
+} else {
+    $activePeriod = 'custom';
+}
+$scopeQuery = array_filter(['region' => $filterRegion, 'zone' => $filterZone], 'strlen');
+$periodHref = function (array $period) use ($scopeQuery) {
+    $q = http_build_query(array_merge($period, $scopeQuery));
+    return 'dashboard.php' . ($q !== '' ? '?' . $q : '');
+};
+?>
+<form method="GET" id="filterForm" class="ad-filterbar" aria-label="Filter statistics">
+    <nav class="tabs ad-period" aria-label="Period">
+        <a href="<?php echo htmlspecialchars($periodHref([])); ?>" class="<?php echo $activePeriod === 'all' ? 'active' : ''; ?>">All time</a>
+        <a href="<?php echo htmlspecialchars($periodHref(['filter_year' => $thisYear])); ?>" class="<?php echo $activePeriod === 'year' ? 'active' : ''; ?>"><?php echo $thisYear; ?></a>
+        <a href="<?php echo htmlspecialchars($periodHref(['filter_year' => $thisYear, 'filter_month' => $thisMonth])); ?>" class="<?php echo $activePeriod === 'month' ? 'active' : ''; ?>"><?php echo date('F'); ?></a>
+        <button type="button" class="<?php echo $activePeriod === 'custom' ? 'active' : ''; ?>" aria-expanded="<?php echo $activePeriod === 'custom' ? 'true' : 'false'; ?>" aria-controls="adCustomPeriod" onclick="var c=document.getElementById('adCustomPeriod');c.hidden=!c.hidden;c.querySelectorAll('select').forEach(function(el){el.disabled=c.hidden;});this.setAttribute('aria-expanded',String(!c.hidden));">Custom<i class="fas fa-chevron-down" aria-hidden="true"></i></button>
+    </nav>
+
+    <div class="ad-scope">
+        <label class="sr-only" for="region">Region</label>
+        <select id="region" name="region" class="input" onchange="this.form.zone.value='';this.form.submit()">
+            <option value="">All regions</option>
+            <?php foreach ($regions as $region): ?>
+            <option value="<?php echo htmlspecialchars($region); ?>" <?php echo $filterRegion === $region ? 'selected' : ''; ?>><?php echo htmlspecialchars($region); ?></option>
+            <?php endforeach; ?>
+        </select>
+        <label class="sr-only" for="zone">Zone</label>
+        <select id="zone" name="zone" class="input" onchange="this.form.submit()">
+            <option value="">All zones</option>
+            <?php foreach ($zones as $zone): ?>
+            <option value="<?php echo htmlspecialchars($zone); ?>" <?php echo $filterZone === $zone ? 'selected' : ''; ?>><?php echo htmlspecialchars($zone); ?></option>
+            <?php endforeach; ?>
+        </select>
+        <?php if ($hasFilters): ?><a href="dashboard.php" class="btn btn-ghost btn-sm">Clear</a><?php endif; ?>
+    </div>
+
+    <?php if ($activePeriod !== 'custom'): ?>
+    <!-- keep the chosen chip period when region/zone change -->
+    <?php foreach (['filter_year' => $rawYear, 'filter_month' => $rawMonth] as $k => $v): if ($v !== ''): ?>
+    <input type="hidden" name="<?php echo $k; ?>" value="<?php echo htmlspecialchars($v); ?>">
+    <?php endif; endforeach; ?>
+    <?php endif; ?>
+
+    <div id="adCustomPeriod" class="ad-custom" <?php echo $activePeriod === 'custom' ? '' : 'hidden'; ?>>
+        <div class="field">
+            <label for="filter_year" class="field-label">Year</label>
+            <select id="filter_year" name="filter_year" class="input" <?php echo $activePeriod === 'custom' ? '' : 'disabled'; ?>>
+                <option value="">Any year</option>
+                <?php foreach ($availableYears as $year): ?>
+                <option value="<?php echo (int)$year; ?>" <?php echo $rawYear === (string)$year ? 'selected' : ''; ?>><?php echo (int)$year; ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="field">
+            <label for="filter_month" class="field-label">Month</label>
+            <select id="filter_month" name="filter_month" class="input" <?php echo $activePeriod === 'custom' ? '' : 'disabled'; ?>>
+                <option value="">All months</option>
+                <?php foreach ($availableMonths as $monthValue => $monthLabel): ?>
+                <option value="<?php echo htmlspecialchars($monthValue); ?>" <?php echo $rawMonth !== '' && (int)$rawMonth === (int)$monthValue ? 'selected' : ''; ?>><?php echo htmlspecialchars($monthLabel); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <span class="ad-custom-or">or</span>
+        <div class="field">
+            <label for="date_from" class="field-label">From</label>
+            <input type="date" id="date_from" name="date_from" value="<?php echo htmlspecialchars($rawFrom); ?>" class="input">
+        </div>
+        <div class="field">
+            <label for="date_to" class="field-label">To</label>
+            <input type="date" id="date_to" name="date_to" value="<?php echo htmlspecialchars($rawTo); ?>" class="input">
+        </div>
+        <button type="submit" class="btn btn-primary">Apply</button>
+    </div>
+</form>
+
+<!-- Key metrics -->
+<section class="section" aria-label="Key metrics">
+    <div class="stat-grid stat-grid--lead">
+        <div class="stat"><div class="stat-label">Reports submitted</div><div class="stat-value"><?php echo number_format($reportStats['total_reports'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">Compliance rate</div><div class="stat-value"><?php echo number_format($complianceData['compliance_rate'] ?? 0, 1); ?>%</div><div class="stat-note"><?php echo number_format($complianceData['compliant_zones'] ?? 0); ?> of <?php echo number_format($complianceData['total_zones'] ?? 0); ?> zones</div></div>
+        <div class="stat"><div class="stat-label">Copies sponsored</div><div class="stat-value"><?php echo number_format($reportStats['total_copies'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">Zones with reports</div><div class="stat-value"><?php echo number_format($reportStats['unique_zones'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">Total distributions</div><div class="stat-value"><?php echo number_format($reportStats['total_distribution'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">Souls won</div><div class="stat-value"><?php echo number_format($reportStats['total_souls'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">New partners</div><div class="stat-value"><?php echo number_format($reportStats['total_new_partners'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">Rhapsody cells</div><div class="stat-value"><?php echo number_format($reportStats['total_rhapsody_cells'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">New churches</div><div class="stat-value"><?php echo number_format($reportStats['total_new_churches'] ?? 0); ?></div></div>
+    </div>
+</section>
+
+
+<!-- Monthly breakdown -->
+<section class="section">
+    <div class="section-head">
+        <h2 class="section-title">Monthly breakdown</h2>
+        <span class="meta"><?php echo htmlspecialchars($periodLabel); ?></span>
+    </div>
+    <?php if (!empty($monthlyBreakdown)): ?>
+    <div class="table-wrap ad-scroll">
+        <table class="data-table">
+            <thead><tr><th scope="col">Month</th><th scope="col" class="num">Reports</th><th scope="col" class="num">Copies sponsored</th><th scope="col" class="num">Souls won</th></tr></thead>
+            <tbody>
+                <?php foreach ($monthlyBreakdown as $month): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($month['month_name']); ?></td>
+                    <td class="num"><?php echo number_format($month['report_count']); ?></td>
+                    <td class="num"><?php echo number_format($month['total_copies'] ?? 0); ?></td>
+                    <td class="num"><?php echo number_format($month['total_souls'] ?? 0); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php else: ?>
+    <div class="panel"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-table" aria-hidden="true"></i></div><div class="empty-state-title">No reports in this period</div><div class="empty-state-text">Widen the date range or clear the filters.</div><a href="dashboard.php" class="btn btn-secondary">Clear filters</a></div></div>
+    <?php endif; ?>
+</section>
+
+<!-- Engagement -->
+<section class="section">
+    <div class="section-head">
+        <h2 class="section-title">Engagement</h2>
+        <span class="section-meta">Portal visits and posts</span>
+    </div>
+    <div class="stat-grid">
+        <div class="stat"><div class="stat-label">Avg. visits / month</div><div class="stat-value"><?php echo number_format($engagementStats['avg_visits_per_month'] ?? 0, 1); ?></div></div>
+        <div class="stat"><div class="stat-label">Avg. unique visitors / month</div><div class="stat-value"><?php echo number_format($engagementStats['avg_unique_visitors_per_month'] ?? 0, 1); ?></div></div>
+        <div class="stat"><div class="stat-label">Visits this month</div><div class="stat-value"><?php echo number_format($engagementStats['visits_this_month'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">Unique visitors this month</div><div class="stat-value"><?php echo number_format($engagementStats['unique_visitors_this_month'] ?? 0); ?></div></div>
+        <div class="stat"><div class="stat-label">Reports this month</div><div class="stat-value"><?php echo number_format($engagementStats['posts_this_month'] ?? 0); ?></div></div>
+    </div>
+</section>
+
+<!-- Zone compliance -->
+<section class="section">
+    <div class="section-head">
+        <h2 class="section-title">Zone compliance</h2>
+        <a href="zone_compliance.php" class="link" style="font-size:var(--text-sm);">View details</a>
+    </div>
+    <div class="stat-grid" style="margin-bottom:var(--spacing-4);">
+        <div class="stat"><div class="stat-label">Compliant zones</div><div class="stat-value"><?php echo number_format($complianceData['compliant_zones'] ?? 0); ?></div><div class="stat-note">Reports submitted</div></div>
+        <div class="stat"><div class="stat-label">Non-compliant zones</div><div class="stat-value"><?php echo number_format($nonCompliant); ?></div><div class="stat-note">No reports yet</div></div>
+    </div>
+    <?php if (!empty($zoneBreakdown)): ?>
+    <div class="table-wrap ad-scroll">
+        <table class="data-table">
+            <thead><tr><th scope="col">Zone</th><th scope="col">Region</th><th scope="col" class="num">Reports</th><th scope="col" class="num">Copies sponsored</th><th scope="col">Status</th></tr></thead>
+            <tbody>
+                <?php foreach ($zoneBreakdown as $zone): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($zone['zone'] ?? 'Unknown'); ?></td>
+                    <td class="muted"><?php echo htmlspecialchars($zone['region'] ?? 'Unknown'); ?></td>
+                    <td class="num"><?php echo number_format($zone['report_count'] ?? 0); ?></td>
+                    <td class="num"><?php echo number_format($zone['total_copies'] ?? 0); ?></td>
+                    <td><?php if (($zone['report_count'] ?? 0) > 0): ?><span class="badge badge-success">Compliant</span><?php else: ?><span class="badge badge-warning">No reports</span><?php endif; ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+</section>
+
+<!-- Reminders -->
+<section class="section">
+    <div class="section-head">
+        <h2 class="section-title">Reminders</h2>
+        <span class="section-meta">Active RZMs behind on reports</span>
+    </div>
+    <div class="grid-2">
+        <div class="panel">
+            <div class="panel-head">
+                <span>No <?php echo date('F'); ?> report</span>
+                <span class="badge <?php echo count($missingThisMonth) > 0 ? 'badge-warning' : 'badge-success'; ?>"><?php echo count($missingThisMonth); ?> user<?php echo count($missingThisMonth) !== 1 ? 's' : ''; ?></span>
+            </div>
+            <?php if (empty($missingThisMonth)): ?>
+            <div class="empty-state"><div class="empty-state-title">Everyone has reported</div><div class="empty-state-text">All active users have submitted this month.</div></div>
+            <?php else: ?>
+            <div class="ad-list">
+                <?php foreach ($missingThisMonth as $mu): $muName = $mu['name'] ?: $mu['username']; ?>
+                <div class="ad-row">
+                    <div class="ad-row-main">
+                        <span class="ad-row-name"><?php echo htmlspecialchars($muName); ?></span>
+                        <span class="ad-row-sub"><?php echo htmlspecialchars($mu['zone'] ?? ''); ?><?php if (!empty($mu['region'])): ?> · <?php echo htmlspecialchars($mu['region']); ?><?php endif; ?></span>
+                    </div>
+                    <button type="button" onclick="openReminder(<?php echo (int)$mu['id']; ?>, this.dataset.name)" data-name="<?php echo htmlspecialchars($muName); ?>" class="btn btn-ghost btn-sm" aria-label="Send reminder to <?php echo htmlspecialchars($muName); ?>"><i class="fas fa-bell" aria-hidden="true"></i> Remind</button>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <div class="panel-foot" style="display:flex;gap:var(--spacing-2);flex-wrap:wrap;">
+                <button type="button" onclick="openReminder(0, 'pending users')" class="btn btn-primary btn-sm"><i class="fas fa-bullhorn" aria-hidden="true"></i> Broadcast reminder</button>
+                <a href="<?php echo BASE_URL; ?>/search.php?q=<?php echo urlencode(date('F')); ?>" class="btn btn-secondary btn-sm">View all</a>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <span>Chronic late submitters</span>
+                <span class="badge <?php echo count($chronicLate) > 0 ? 'badge-warning' : 'badge-success'; ?>"><?php echo count($chronicLate); ?> user<?php echo count($chronicLate) !== 1 ? 's' : ''; ?></span>
+            </div>
+            <div class="ad-row meta" style="background:var(--mist);">Missed 2+ of the last 6 months</div>
+            <?php if (empty($chronicLate)): ?>
+            <div class="empty-state"><div class="empty-state-title">No chronic late submitters</div></div>
+            <?php else: ?>
+            <div class="ad-list">
+                <?php foreach ($chronicLate as $cl): $clName = $cl['name'] ?: $cl['username']; ?>
+                <div class="ad-row">
+                    <div class="ad-row-main">
+                        <span class="ad-row-name"><?php echo htmlspecialchars($clName); ?></span>
+                        <span class="ad-row-sub"><?php echo htmlspecialchars($cl['zone'] ?? ''); ?><?php if (!empty($cl['region'])): ?> · <?php echo htmlspecialchars($cl['region']); ?><?php endif; ?></span>
+                    </div>
+                    <span class="badge badge-warning no-dot num" title="<?php echo (int)$cl['months_submitted']; ?>/6 months submitted"><?php echo (int)$cl['months_missed']; ?> mo missed</span>
+                    <button type="button" onclick="openReminder(<?php echo (int)$cl['id']; ?>, this.dataset.name)" data-name="<?php echo htmlspecialchars($clName); ?>" class="btn btn-ghost btn-sm" aria-label="Send reminder to <?php echo htmlspecialchars($clName); ?>"><i class="fas fa-bell" aria-hidden="true"></i></button>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</section>
+
+<!-- Reminder dialog -->
+<dialog class="ad-dialog" id="reminderModal" aria-labelledby="reminderModalTitle">
+    <form method="POST" id="reminderForm">
+        <div class="panel-head"><span id="reminderModalTitle">Send reminder</span></div>
+        <div class="panel-body">
+            <p id="reminderModalDesc" class="muted">Send a reminder to the selected user.</p>
+            <input type="hidden" name="csrf_token" value="<?php echo Security::generateCSRFToken(); ?>">
+            <input type="hidden" name="reminder_action" value="1">
+            <input type="hidden" name="reminder_target_id" id="reminderTargetId" value="0">
+            <div class="field" style="margin-bottom:0;">
+                <label for="reminderMessage" class="field-label">Message</label>
+                <textarea name="reminder_message" id="reminderMessage" rows="4" class="input" placeholder="e.g. Please submit your monthly report. It is now overdue." required></textarea>
+            </div>
+        </div>
+        <div class="panel-foot" style="display:flex;gap:var(--spacing-2);justify-content:flex-end;">
+            <button type="button" onclick="closeReminder()" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane" aria-hidden="true"></i> Send</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- Sponsorship -->
+<section class="section">
+    <div class="section-head"><h2 class="section-title">Sponsorship</h2></div>
+    <div class="stat-grid">
+        <div class="stat"><div class="stat-label">Active sponsors</div><div class="stat-value"><?php echo number_format($sponsorshipStats['active_sponsors'] ?? 0); ?></div></div>
+    </div>
+</section>
+
+<?php
+// ── Regional compliance milestones ──────────────────────────────────────
+$expectedMonthsAdm = (!empty($filterYear) && (int)$filterYear == (int)date('Y'))
+    ? (int)date('n')
+    : ((!empty($filterYear)) ? 12 : (int)date('n'));
+
+$regionMilestoneParams = [];
+$regionMilestoneWhere  = "WHERE u.zone IS NOT NULL AND u.zone != '' AND u.region IS NOT NULL AND u.region != ''";
+if (!empty($filterRegion)) {
+    $regionMilestoneWhere .= " AND u.region = :region";
+    $regionMilestoneParams[':region'] = $filterRegion;
+}
+$yearJoinCond = '';
+if (!empty($filterYear)) {
+    $yearJoinCond = " AND YEAR(r.report_month) = :year";
+    $regionMilestoneParams[':year'] = $filterYear;
+}
+$rmStmt = $conn->prepare("
+    SELECT u.region,
+           COUNT(DISTINCT u.zone)                                          AS total_zones,
+           COUNT(DISTINCT CASE WHEN r.id IS NOT NULL THEN u.zone END)      AS zones_submitted,
+           COALESCE(SUM(r.total_copies), 0)                                AS copies,
+           COALESCE(SUM(r.souls_won), 0)                                   AS souls
+    FROM users u
+    LEFT JOIN reports r ON r.user_id = u.id $yearJoinCond
+    $regionMilestoneWhere
+    GROUP BY u.region
+    ORDER BY zones_submitted DESC, copies DESC
+");
+$rmStmt->execute($regionMilestoneParams);
+$regionMilestones = $rmStmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+
+<?php if (!empty($regionMilestones)): ?>
+<section class="section">
+    <div class="section-head">
+        <h2 class="section-title">Regional milestones<?php echo !empty($filterYear) ? ' · ' . htmlspecialchars($filterYear) : ''; ?></h2>
+        <a href="../pages/analytics.php<?php echo !empty($filterYear) ? '?year=' . urlencode($filterYear) : ''; ?>" class="link" style="font-size:var(--text-sm);">Full analytics</a>
+    </div>
+    <div class="grid-3">
+        <?php foreach ($regionMilestones as $rm):
+            $tz   = max(1, (int)$rm['total_zones']);
+            $zs   = (int)$rm['zones_submitted'];
+            $rate = min(100, round(($zs / $tz) * 100));
+        ?>
+        <div class="panel ad-tile">
+            <div class="ad-tile-row"><span class="ad-tile-title" title="<?php echo htmlspecialchars($rm['region']); ?>"><?php echo htmlspecialchars($rm['region']); ?></span><span class="num" style="color:var(--neutral-900);font-weight:500;"><?php echo $rate; ?>%</span></div>
+            <div class="ad-bar<?php echo $rate < 50 ? ' is-low' : ''; ?>" role="progressbar" aria-valuenow="<?php echo $rate; ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?php echo htmlspecialchars($rm['region']); ?> zones reporting"><span style="width:<?php echo $rate; ?>%;"></span></div>
+            <div class="ad-tile-row num"><span><?php echo $zs; ?> / <?php echo $tz; ?> zones</span></div>
+            <div class="ad-tile-row num"><span><?php echo number_format($rm['copies']); ?> copies · <?php echo number_format($rm['souls']); ?> souls</span></div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</section>
+<?php endif; ?>
+
+<?php
+// ── Team progress board (zones ranked by compliance rate) ───────────────
+$teamParams = [];
+$teamUserWhere = "u.zone IS NOT NULL AND u.zone != ''";
+if (!empty($filterRegion)) {
+    $teamUserWhere .= " AND u.region = :region";
+    $teamParams[':region'] = $filterRegion;
+}
+$teamYearJoin = '';
+if (!empty($filterYear)) {
+    $teamYearJoin = " AND YEAR(r.report_month) = :year";
+    $teamParams[':year'] = $filterYear;
+}
+$teamStmt = $conn->prepare("
+    SELECT u.zone, u.region,
+           COUNT(DISTINCT DATE_FORMAT(r.report_month,'%Y-%m')) AS months_submitted,
+           COALESCE(SUM(r.total_copies), 0)                    AS copies,
+           COALESCE(SUM(r.souls_won), 0)                       AS souls
+    FROM users u
+    LEFT JOIN reports r ON r.user_id = u.id $teamYearJoin
+    WHERE $teamUserWhere
+    GROUP BY u.zone, u.region
+    ORDER BY months_submitted DESC, copies DESC
+    LIMIT 24
+");
+$teamStmt->execute($teamParams);
+$teamZones = $teamStmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+
+<?php if (!empty($teamZones)): ?>
+<section class="section">
+    <div class="section-head">
+        <h2 class="section-title">Team progress<?php echo !empty($filterRegion) ? ' · ' . htmlspecialchars($filterRegion) : ''; ?></h2>
+        <span class="meta"><?php echo $expectedMonthsAdm; ?> months expected · top <?php echo count($teamZones); ?> zones</span>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th scope="col" class="num">#</th><th scope="col">Zone</th><th scope="col">Region</th><th scope="col" class="num">Months</th><th scope="col" class="num">Copies</th><th scope="col" class="num">Rate</th></tr></thead>
+            <tbody>
+                <?php foreach ($teamZones as $ti => $tz):
+                    $rate = $expectedMonthsAdm > 0 ? min(100, round(((int)$tz['months_submitted'] / $expectedMonthsAdm) * 100)) : 0;
+                ?>
+                <tr>
+                    <td class="num meta"><?php echo $ti + 1; ?></td>
+                    <td><?php echo htmlspecialchars($tz['zone']); ?></td>
+                    <td class="muted"><?php echo htmlspecialchars($tz['region'] ?? ''); ?></td>
+                    <td class="num"><?php echo (int)$tz['months_submitted']; ?>/<?php echo $expectedMonthsAdm; ?></td>
+                    <td class="num"><?php echo number_format($tz['copies']); ?></td>
+                    <td class="num"><?php if ((int)$tz['months_submitted'] === 0): ?><span class="badge badge-warning">0%</span><?php else: echo $rate . '%'; endif; ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+<?php endif; ?>
+
 <script>
-    // Reminder modal
+    // Reminder dialog
     function openReminder(userId, name) {
+        var modal = document.getElementById('reminderModal');
         document.getElementById('reminderTargetId').value = userId;
         document.getElementById('reminderModalDesc').textContent =
             userId > 0
                 ? 'Send a reminder to ' + name + '.'
                 : 'Broadcast a reminder to all ' + name + '.';
         document.getElementById('reminderMessage').value = '';
-        document.getElementById('reminderModal').classList.add('open');
+        if (typeof modal.showModal === 'function') { modal.showModal(); } else { modal.setAttribute('open', ''); }
     }
     function closeReminder() {
-        document.getElementById('reminderModal').classList.remove('open');
+        var modal = document.getElementById('reminderModal');
+        if (typeof modal.close === 'function') { modal.close(); } else { modal.removeAttribute('open'); }
     }
     document.getElementById('reminderModal').addEventListener('click', function(e) {
         if (e.target === this) closeReminder();
-    });
-
-    // Session toasts
-    document.addEventListener('DOMContentLoaded', function() {
-        <?php if (isset($_SESSION['success'])): ?>
-        showToast('<?php echo addslashes($_SESSION['success']); ?>', 'success');
-        <?php unset($_SESSION['success']); ?>
-        <?php endif; ?>
-        <?php if (isset($_SESSION['error'])): ?>
-        showToast('<?php echo addslashes($_SESSION['error']); ?>', 'error');
-        <?php unset($_SESSION['error']); ?>
-        <?php endif; ?>
     });
 
     (function () {
@@ -887,6 +843,5 @@ require_once '../layouts/header.php';
         }
     }());
 </script>
-
 
 <?php require_once '../layouts/footer.php'; ?>

@@ -110,7 +110,7 @@ if ($q !== '') {
         } elseif (in_array($tok, ['manager','admin-manager'])) {
             $intentRole = 'admin-manager';
         } elseif (in_array($tok, ['user','rzm','sponsor'])) {
-            $intentRole = 'user';
+            $intentRole = ROLE_RZM;
         } elseif (in_array($tok, ['active','approved'])) {
             $intentStatus = 1;
         } elseif (in_array($tok, ['pending','inactive','disabled'])) {
@@ -281,173 +281,188 @@ $totalResults = count($reportResults) + count($userResults) + count($zoneResults
 require_once 'layouts/header.php';
 ?>
 <style>
-.sr-page { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
-.sr-head { margin-bottom: 1.5rem; }
-.sr-head h1 { font-size: 1.125rem; font-weight: 700; color: var(--neutral-900); margin: 0 0 0.85rem; }
-.sr-form { display: flex; gap: 0.5rem; }
-.sr-input { flex: 1; padding: 0.55rem 0.85rem; font-size: 0.9rem; border: 1px solid var(--neutral-300); border-radius: var(--radius-lg); outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
-.sr-input:focus { border-color: var(--primary-400); box-shadow: 0 0 0 3px rgba(14,165,233,0.1); }
-.sr-meta { font-size: 0.8rem; color: var(--neutral-400); margin-top: 0.5rem; }
-.sr-section { margin-bottom: 1.75rem; }
-.sr-section-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--neutral-400); margin: 0 0 0.6rem; }
-.sr-card { border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: #fff; overflow: hidden; margin-bottom: 0.5rem; }
-.sr-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; text-decoration: none; transition: background 0.12s; }
-.sr-row:hover { background: var(--neutral-50); }
-.sr-row + .sr-row { border-top: 1px solid var(--neutral-100); }
-.sr-icon { width: 2rem; height: 2rem; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
-.sr-icon-report { background: var(--primary-50); color: var(--primary-600); }
-.sr-icon-user   { background: var(--success-50); color: var(--success-700); }
-.sr-icon-zone   { background: var(--warning-50); color: var(--warning-700); }
+/* Search: page-local pieces the shared components don't cover. */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sr-form { display: flex; gap: var(--spacing-2); width: 100%; max-width: 44rem; margin-top: var(--spacing-5); }
+.sr-field { position: relative; flex: 1; min-width: 0; }
+.sr-field > i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--neutral-600); pointer-events: none; }
+.sr-field .input { height: 3rem; padding-left: 2.75rem; font-size: var(--text-base); }
+.sr-list { list-style: none; margin: 0; padding: 0; }
+.sr-list li + li { border-top: 1px solid var(--hairline); }
+.sr-row { display: flex; align-items: center; gap: var(--spacing-3); padding: var(--spacing-3) var(--spacing-5); color: inherit; }
+.sr-row:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
 .sr-main { flex: 1; min-width: 0; }
-.sr-title { font-size: 0.875rem; font-weight: 600; color: var(--neutral-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sr-sub   { font-size: 0.75rem; color: var(--neutral-400); margin-top: 0.1rem; }
-.sr-badge { font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 9999px; flex-shrink: 0; }
-.sr-badge-success { background: var(--success-50); color: var(--success-700); }
-.sr-badge-danger  { background: var(--danger-50);  color: var(--danger-700); }
-.sr-badge-warning { background: var(--warning-50); color: var(--warning-700); }
-.sr-empty { border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: #fff; padding: 3rem 1.5rem; text-align: center; }
-.sr-empty i { font-size: 2rem; color: var(--neutral-300); margin-bottom: 0.75rem; display: block; }
-.sr-empty p { font-size: 0.875rem; color: var(--neutral-400); margin: 0; }
-.sr-suggestion { display:inline-flex; align-items:center; font-size:0.78rem; color:var(--primary-600); background:var(--primary-50); border:1px solid var(--primary-100); border-radius:9999px; padding:0.2rem 0.7rem; text-decoration:none; transition:background 0.12s; }
-.sr-suggestion:hover { background:var(--primary-100); }
-.sr-intent-bar { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; font-size:0.8rem; color:var(--neutral-500); background:var(--primary-50); border:1px solid var(--primary-100); border-radius:var(--radius-lg); padding:0.55rem 0.9rem; margin-bottom:1rem; }
-.sr-intent-chip { display:inline-flex; align-items:center; background:var(--primary-100); color:var(--primary-700); font-size:0.75rem; font-weight:600; border-radius:9999px; padding:0.15rem 0.6rem; }
-.sr-hl { background:#fef08a; color:#713f12; border-radius:2px; padding:0 1px; font-style:normal; }
+.sr-title { font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-sub { font-size: var(--text-xs); color: var(--neutral-600); margin-top: 0.125rem; overflow-wrap: anywhere; }
+.sr-chevron { color: var(--neutral-400); font-size: var(--text-xs); flex-shrink: 0; }
+.sr-chips { display: flex; flex-wrap: wrap; gap: var(--spacing-2); justify-content: center; }
+.sr-intent { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); margin-bottom: var(--spacing-6); font-size: var(--text-sm); color: var(--slate); }
+.sr-hl { background: var(--warning-100); color: var(--ink); border-radius: 2px; padding: 0 1px; }
+@media (hover: hover) and (pointer: fine) { .sr-row { transition: background-color var(--dur-fast) var(--ease-out); } a.sr-row:hover { background: var(--mist); } }
+@media (max-width: 479px) { .sr-form { flex-wrap: wrap; } .sr-field { flex-basis: 100%; } }
 </style>
 
-<div class="sr-page">
-    <div class="sr-head">
-        <h1><i class="fas fa-search" style="color:var(--primary-500);margin-right:0.4rem;font-size:0.95rem;"></i>Search</h1>
-        <form method="GET" class="sr-form">
-            <input type="text" name="q" value="<?php echo htmlspecialchars($q); ?>"
-                   class="sr-input" placeholder="Search reports, users, zones, months…"
-                   autofocus autocomplete="off">
-            <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;">Search</button>
+<div class="page-head">
+    <div style="flex:1;min-width:0;">
+        <div class="page-eyebrow">Search</div>
+        <h1 class="page-title">Find reports<?php echo ($isAdmin || $isAdminManager) ? ', people and zones' : ''; ?></h1>
+        <form method="GET" class="sr-form" role="search">
+            <div class="sr-field">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <label for="sr-q" class="sr-only">Search</label>
+                <input type="search" id="sr-q" name="q" value="<?php echo htmlspecialchars($q); ?>"
+                       class="input" placeholder="<?php echo ($isAdmin || $isAdminManager) ? 'Name, zone, region or month' : 'Month or year, e.g. March 2025'; ?>"
+                       autofocus autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg">Search</button>
             <?php if ($q !== ''): ?>
-            <a href="search.php" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">Clear</a>
+            <a href="search.php" class="btn btn-ghost btn-lg">Clear</a>
             <?php endif; ?>
         </form>
         <?php if ($q !== ''): ?>
-        <p class="sr-meta"><?php echo $totalResults; ?> result<?php echo $totalResults !== 1 ? 's' : ''; ?> for &ldquo;<?php echo htmlspecialchars($q); ?>&rdquo;</p>
+        <p class="page-sub" style="margin-top:var(--spacing-3);" aria-live="polite"><span class="num"><?php echo $totalResults; ?></span> result<?php echo $totalResults !== 1 ? 's' : ''; ?> for &ldquo;<?php echo htmlspecialchars($q); ?>&rdquo;</p>
         <?php endif; ?>
     </div>
+</div>
 
-    <?php if (!empty($detectedIntent)): ?>
-    <div class="sr-intent-bar">
-        <i class="fas fa-magic" style="color:var(--primary-500);"></i>
-        <span>Interpreted as:</span>
-        <?php foreach ($detectedIntent as $intent): ?>
-        <span class="sr-intent-chip"><?php echo htmlspecialchars(trim($intent)); ?></span>
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
+<?php if (!empty($detectedIntent)): ?>
+<div class="sr-intent">
+    <span class="meta">Interpreted as</span>
+    <?php foreach ($detectedIntent as $intent): ?>
+    <span class="badge badge-info no-dot"><?php echo htmlspecialchars(trim($intent)); ?></span>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 
-    <?php if ($q === ''): ?>
-    <div class="sr-empty">
-        <i class="fas fa-search"></i>
-        <p>Enter a name, zone, region, or month to search across the portal.</p>
-        <div style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center;">
+<?php if ($q === ''): ?>
+<div class="panel">
+    <div class="empty-state">
+        <div class="empty-state-icon"><i class="fas fa-search" aria-hidden="true"></i></div>
+        <div class="empty-state-title">Search the portal</div>
+        <p class="empty-state-text"><?php echo ($isAdmin || $isAdminManager) ? 'Enter a name, zone, region, or month.' : 'Enter a month or year to find your reports.'; ?> Try one of these:</p>
+        <div class="sr-chips">
             <?php
-            $suggestions = ['March 2025','pending users','admin','Lagos Zone'];
+            $suggestions = ($isAdmin || $isAdminManager) ? ['March 2025','pending users','admin','Lagos Zone'] : [date('F Y'), date('Y'), (string)((int)date('Y') - 1)];
             foreach ($suggestions as $s):
             ?>
-            <a href="search.php?q=<?php echo urlencode($s); ?>" class="sr-suggestion"><?php echo htmlspecialchars($s); ?></a>
+            <a href="search.php?q=<?php echo urlencode($s); ?>" class="btn btn-secondary btn-sm"><?php echo htmlspecialchars($s); ?></a>
             <?php endforeach; ?>
         </div>
     </div>
-
-    <?php elseif ($totalResults === 0): ?>
-    <div class="sr-empty">
-        <i class="fas fa-inbox"></i>
-        <p>No results for &ldquo;<?php echo htmlspecialchars($q); ?>&rdquo;.</p>
-        <p style="font-size:0.78rem;color:var(--neutral-400);margin-top:0.35rem;">Try a different name, zone, month (e.g. &ldquo;March 2025&rdquo;), or role (e.g. &ldquo;admin&rdquo;).</p>
-    </div>
-
-    <?php else: ?>
-
-    <?php if (!empty($reportResults)): ?>
-    <div class="sr-section">
-        <p class="sr-section-title"><i class="fas fa-file-alt" style="margin-right:0.3rem;"></i>Reports (<?php echo count($reportResults); ?>)</p>
-        <div class="sr-card">
-            <?php foreach ($reportResults as $r): ?>
-            <a href="<?php echo BASE_URL; ?>/pages/reports/view.php?id=<?php echo $r['id']; ?>" class="sr-row">
-                <div class="sr-icon sr-icon-report"><i class="fas fa-file-alt"></i></div>
-                <div class="sr-main">
-                    <div class="sr-title">
-                        Report #<?php echo $r['id']; ?> &mdash;
-                        <?php echo highlightTokens(date('F Y', strtotime($r['report_month'])), $rawTokens ?? []); ?>
-                        <?php if (!empty($r['zone'])): ?>
-                        <span style="font-weight:400;color:var(--neutral-400);">&nbsp;&middot;&nbsp;<?php echo highlightTokens($r['zone'], $rawTokens ?? []); ?></span>
-                        <?php endif; ?>
-                    </div>
-                    <div class="sr-sub">
-                        <?php if (!empty($r['name'])): ?><?php echo highlightTokens($r['name'], $rawTokens ?? []); ?><?php endif; ?>
-                        <?php if (!empty($r['region'])): ?> &middot; <?php echo highlightTokens($r['region'], $rawTokens ?? []); ?><?php endif; ?>
-                        &middot; <?php echo date('M j, Y', strtotime($r['created_at'])); ?>
-                        <?php if (!empty($r['total_copies'])): ?>
-                        &middot; <?php echo number_format($r['total_copies']); ?> copies
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right" style="color:var(--neutral-300);font-size:0.7rem;"></i>
-            </a>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if (!empty($userResults)): ?>
-    <div class="sr-section">
-        <p class="sr-section-title"><i class="fas fa-users" style="margin-right:0.3rem;"></i>Users (<?php echo count($userResults); ?>)</p>
-        <div class="sr-card">
-            <?php foreach ($userResults as $u): ?>
-            <a href="<?php echo BASE_URL; ?>/admin/edit-user.php?id=<?php echo $u['id']; ?>" class="sr-row">
-                <div class="sr-icon sr-icon-user"><i class="fas fa-user"></i></div>
-                <div class="sr-main">
-                    <div class="sr-title"><?php echo highlightTokens($u['name'] ?: $u['username'], $rawTokens ?? []); ?></div>
-                    <div class="sr-sub">
-                        @<?php echo highlightTokens($u['username'], $rawTokens ?? []); ?>
-                        <?php if (!empty($u['zone'])): ?>&middot; <?php echo highlightTokens($u['zone'], $rawTokens ?? []); ?><?php endif; ?>
-                        <?php if (!empty($u['region'])): ?>&middot; <?php echo highlightTokens($u['region'], $rawTokens ?? []); ?><?php endif; ?>
-                        &middot; <?php echo htmlspecialchars($u['role']); ?>
-                    </div>
-                </div>
-                <span class="sr-badge <?php echo $u['active'] ? 'sr-badge-success' : 'sr-badge-warning'; ?>">
-                    <?php echo $u['active'] ? 'Active' : 'Pending'; ?>
-                </span>
-                <i class="fas fa-chevron-right" style="color:var(--neutral-300);font-size:0.7rem;"></i>
-            </a>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if (!empty($zoneResults)): ?>
-    <div class="sr-section">
-        <p class="sr-section-title"><i class="fas fa-map-marker-alt" style="margin-right:0.3rem;"></i>Zones (<?php echo count($zoneResults); ?>)</p>
-        <div class="sr-card">
-            <?php foreach ($zoneResults as $z): ?>
-            <a href="<?php echo BASE_URL; ?>/pages/reports/list.php?zone=<?php echo urlencode($z['zone']); ?>" class="sr-row">
-                <div class="sr-icon sr-icon-zone"><i class="fas fa-map-marker-alt"></i></div>
-                <div class="sr-main">
-                    <div class="sr-title"><?php echo highlightTokens($z['zone'], $rawTokens ?? []); ?></div>
-                    <div class="sr-sub">
-                        <?php echo highlightTokens($z['region'], $rawTokens ?? []); ?>
-                        &middot; <?php echo number_format($z['report_count']); ?> report<?php echo $z['report_count'] != 1 ? 's' : ''; ?>
-                        <?php if ($z['last_submission']): ?>&middot; Last: <?php echo date('M Y', strtotime($z['last_submission'])); ?><?php endif; ?>
-                    </div>
-                </div>
-                <span class="sr-badge <?php echo $z['report_count'] > 0 ? 'sr-badge-success' : 'sr-badge-danger'; ?>">
-                    <?php echo $z['report_count'] > 0 ? 'Reporting' : 'No reports'; ?>
-                </span>
-                <i class="fas fa-chevron-right" style="color:var(--neutral-300);font-size:0.7rem;"></i>
-            </a>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php endif; ?>
 </div>
+
+<?php elseif ($totalResults === 0): ?>
+<div class="panel">
+    <div class="empty-state">
+        <div class="empty-state-icon"><i class="fas fa-inbox" aria-hidden="true"></i></div>
+        <div class="empty-state-title">No results for &ldquo;<?php echo htmlspecialchars($q); ?>&rdquo;</div>
+        <p class="empty-state-text">Try a different name, zone, month (e.g. &ldquo;March 2025&rdquo;), or role (e.g. &ldquo;admin&rdquo;).</p>
+        <a href="search.php" class="btn btn-secondary">Clear search</a>
+    </div>
+</div>
+
+<?php else: ?>
+
+<?php if (!empty($reportResults)): ?>
+<section class="section" aria-labelledby="sr-reports">
+    <div class="section-head">
+        <h2 class="section-title" id="sr-reports">Reports</h2>
+        <span class="section-meta num"><?php echo count($reportResults); ?></span>
+    </div>
+    <div class="panel">
+        <ul class="sr-list">
+            <?php foreach ($reportResults as $r): ?>
+            <li>
+                <a href="<?php echo BASE_URL; ?>/pages/reports/view.php?id=<?php echo (int)$r['id']; ?>" class="sr-row">
+                    <div class="sr-main">
+                        <div class="sr-title">
+                            <?php echo highlightTokens(date('F Y', strtotime($r['report_month'])), $rawTokens ?? []); ?>
+                            <?php if (!empty($r['zone'])): ?><span class="muted" style="font-weight:400;"> &middot; <?php echo highlightTokens($r['zone'], $rawTokens ?? []); ?></span><?php endif; ?>
+                        </div>
+                        <div class="sr-sub">
+                            <span class="meta">#<?php echo (int)$r['id']; ?></span>
+                            <?php if (!empty($r['name'])): ?> &middot; <?php echo highlightTokens($r['name'], $rawTokens ?? []); ?><?php endif; ?>
+                            <?php if (!empty($r['region'])): ?> &middot; <?php echo highlightTokens($r['region'], $rawTokens ?? []); ?><?php endif; ?>
+                            &middot; <?php echo date('M j, Y', strtotime($r['created_at'])); ?>
+                            <?php if (!empty($r['total_copies'])): ?> &middot; <span class="num"><?php echo number_format($r['total_copies']); ?></span> copies<?php endif; ?>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right sr-chevron" aria-hidden="true"></i>
+                </a>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</section>
+<?php endif; ?>
+
+<?php if (!empty($userResults)): ?>
+<section class="section" aria-labelledby="sr-users">
+    <div class="section-head">
+        <h2 class="section-title" id="sr-users">People</h2>
+        <span class="section-meta num"><?php echo count($userResults); ?></span>
+    </div>
+    <div class="panel">
+        <ul class="sr-list">
+            <?php foreach ($userResults as $u): ?>
+            <li>
+                <?php if ($isAdmin): ?>
+                <a href="<?php echo BASE_URL; ?>/admin/edit-user.php?id=<?php echo (int)$u['id']; ?>" class="sr-row">
+                <?php else: /* admin managers cannot open admin/edit-user.php */ ?>
+                <div class="sr-row">
+                <?php endif; ?>
+                    <div class="sr-main">
+                        <div class="sr-title"><?php echo highlightTokens($u['name'] ?: $u['username'], $rawTokens ?? []); ?></div>
+                        <div class="sr-sub">
+                            @<?php echo highlightTokens($u['username'], $rawTokens ?? []); ?>
+                            <?php if (!empty($u['zone'])): ?> &middot; <?php echo highlightTokens($u['zone'], $rawTokens ?? []); ?><?php endif; ?>
+                            <?php if (!empty($u['region'])): ?> &middot; <?php echo highlightTokens($u['region'], $rawTokens ?? []); ?><?php endif; ?>
+                            &middot; <?php echo htmlspecialchars($u['role'] === ROLE_RZM ? 'RZM' : ($u['role'] === 'admin-manager' ? 'Admin Manager' : ucfirst($u['role']))); ?>
+                        </div>
+                    </div>
+                    <span class="badge <?php echo $u['active'] ? 'badge-success' : 'badge-warning'; ?>"><?php echo $u['active'] ? 'Active' : 'Pending'; ?></span>
+                <?php if ($isAdmin): ?>
+                    <i class="fas fa-chevron-right sr-chevron" aria-hidden="true"></i>
+                </a>
+                <?php else: ?>
+                </div>
+                <?php endif; ?>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</section>
+<?php endif; ?>
+
+<?php if (!empty($zoneResults)): ?>
+<section class="section" aria-labelledby="sr-zones">
+    <div class="section-head">
+        <h2 class="section-title" id="sr-zones">Zones</h2>
+        <span class="section-meta num"><?php echo count($zoneResults); ?></span>
+    </div>
+    <div class="panel">
+        <ul class="sr-list">
+            <?php foreach ($zoneResults as $z): ?>
+            <li>
+                <a href="<?php echo BASE_URL; ?>/pages/reports/list.php?zone=<?php echo urlencode($z['zone']); ?>" class="sr-row">
+                    <div class="sr-main">
+                        <div class="sr-title"><?php echo highlightTokens($z['zone'], $rawTokens ?? []); ?></div>
+                        <div class="sr-sub">
+                            <?php echo highlightTokens((string)$z['region'], $rawTokens ?? []); ?>
+                            &middot; <span class="num"><?php echo number_format($z['report_count']); ?></span> report<?php echo $z['report_count'] != 1 ? 's' : ''; ?>
+                            <?php if ($z['last_submission']): ?> &middot; Last: <?php echo date('M Y', strtotime($z['last_submission'])); ?><?php endif; ?>
+                        </div>
+                    </div>
+                    <span class="badge <?php echo $z['report_count'] > 0 ? 'badge-success' : 'badge-danger'; ?>"><?php echo $z['report_count'] > 0 ? 'Reporting' : 'No reports'; ?></span>
+                    <i class="fas fa-chevron-right sr-chevron" aria-hidden="true"></i>
+                </a>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</section>
+<?php endif; ?>
+
+<?php endif; ?>
 
 <?php require_once 'layouts/footer.php'; ?>
