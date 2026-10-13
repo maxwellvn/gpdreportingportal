@@ -2,15 +2,12 @@
 class Security {
     // Generate CSRF token
     public static function generateCSRFToken() {
-        if (empty($_SESSION['csrf_token'])) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        }
-        return $_SESSION['csrf_token'];
+        return csrf_token();
     }
 
     // Verify CSRF token
     public static function verifyCSRFToken($token) {
-        if (!isset($_SESSION['csrf_token']) || $token !== $_SESSION['csrf_token']) {
+        if (!isset($_SESSION['csrf_token']) || !is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
             throw new Exception('CSRF token validation failed');
         }
         return true;

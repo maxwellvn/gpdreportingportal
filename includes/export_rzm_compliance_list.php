@@ -28,7 +28,7 @@ try {
         "u.active = 1"
     ];
     $userParams = [
-        ':rzm_role' => ROLE_USER
+        ':rzm_role' => ROLE_RZM
     ];
 
     $reportWhereParts = [
@@ -36,7 +36,7 @@ try {
         "u.active = 1"
     ];
     $reportParams = [
-        ':rzm_role' => ROLE_USER
+        ':rzm_role' => ROLE_RZM
     ];
 
     if ($filterRegion !== '') {

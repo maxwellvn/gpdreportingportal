@@ -49,6 +49,34 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     register_shutdown_function('session_write_close');
 }
 
+/** Per-session CSRF token, shared by every form and fetch call (see assets/js/app.js). */
+function csrf_token() {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+// Global CSRF gate: every POST must carry the session token as a form field or X-CSRF-Token header.
+// kc_callback.php is exempt because KingsChat posts to it cross-site; it validates the token with KingsChat instead.
+if (php_sapi_name() !== 'cli'
+    && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+    && basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'kc_callback.php'
+) {
+    $sentToken = (string)($_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+    if ($sentToken === '' || !hash_equals(csrf_token(), $sentToken)) {
+        http_response_code(403);
+        $wantsJson = stripos($_SERVER['HTTP_ACCEPT'] ?? '', 'json') !== false || isset($_SERVER['HTTP_X_CSRF_TOKEN']);
+        if ($wantsJson) {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => 'csrf', 'message' => 'Your session expired. Reload the page and try again.']);
+        } else {
+            echo 'Your session expired or the form is out of date. Go back, reload the page and try again.';
+        }
+        exit;
+    }
+}
+
 // Include database configuration
 require_once __DIR__ . '/../includes/database.php';
 
@@ -160,7 +188,12 @@ $REGIONS_ZONES = getRegionsZones();
 // User roles
 define('ROLE_ADMIN', 'admin');
 define('ROLE_ADMIN_MANAGER', 'admin-manager');
-define('ROLE_USER', 'user');
+define('ROLE_RZM', 'rzm');
+
+// ponytail: sessions created before the 'user' -> 'rzm' rename; delete once SESSION_LIFETIME has passed after deploy
+if (($_SESSION['user_data']['role'] ?? '') === 'user') {
+    $_SESSION['user_data']['role'] = ROLE_RZM;
+}
 
 // Report statuses
 define('STATUS_DRAFT', 'draft');

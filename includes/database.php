@@ -13,22 +13,17 @@ class Database {
     public function __construct() {
         loadEnvFile(__DIR__ . '/../.env');
 
-        // Prefer environment variables when provided; fall back to sensible defaults
-        if (defined('ENVIRONMENT') && ENVIRONMENT === 'production') {
-            $this->host = getenv('DB_HOST') ?: 'localhost';
-            // Correct production DB name (without the 's' at the end)
-            $this->db_name = getenv('DB_NAME') ?: 'u410505784_gpdreport';
-            $this->username = getenv('DB_USER') ?: 'u410505784_gpdreport';
-            // Temporary fallback password (replace with env var ASAP)
-            $this->password = getenv('DB_PASS') ?: 'lolamarsh1@A';
-            $this->port = getenv('DB_PORT') ?: '3306';
-        } else {
-            // Local development credentials (XAMPP)
-            $this->host = getenv('DB_HOST') ?: 'localhost';
-            $this->db_name = getenv('DB_NAME') ?: 'gpdreports';
-            $this->username = getenv('DB_USER') ?: 'root';
-            $this->password = getenv('DB_PASS') ?: '';
-            $this->port = getenv('DB_PORT') ?: '3306';
+        // Credentials come only from the environment (.env). Production must set them explicitly.
+        $isProduction = defined('ENVIRONMENT') && ENVIRONMENT === 'production';
+        $this->host = getenv('DB_HOST') ?: 'localhost';
+        $this->port = getenv('DB_PORT') ?: '3306';
+        $this->db_name = getenv('DB_NAME') ?: ($isProduction ? '' : 'gpdreports');
+        $this->username = getenv('DB_USER') ?: ($isProduction ? '' : 'root');
+        $this->password = getenv('DB_PASS') ?: '';
+
+        if ($isProduction && ($this->db_name === '' || $this->username === '')) {
+            error_log('Database configuration missing: set DB_NAME, DB_USER and DB_PASS in .env');
+            throw new Exception('Database is not configured');
         }
     }
 

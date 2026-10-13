@@ -1,0 +1,31 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Dotfiles (.env, .git, editor folders) except ACME challenges
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+
+    # Internal folders: never served directly
+    RewriteRule ^(secure_data|database|config|kingschat|tests|vendor|layouts|logs|data)(/|$) - [F,L]
+
+    # distribution/ is a separate app: block its installer, KingsChat tooling and video project
+    RewriteRule ^distribution/(install_db\.php|kingschat|distribution-video|lib)(/|$) - [F,L]
+
+    # includes/ is library code; only these export endpoints are linked from the UI
+    RewriteCond %{REQUEST_URI} !/includes/export_(reports?|rzm_compliance_list)\.php$
+    RewriteRule ^includes/ - [F,L]
+
+    # Uploaded files must never execute
+    RewriteRule ^uploads/.*\.(php\d?|phtml|phar)$ - [F,L,NC]
+</IfModule>
+
+<FilesMatch "\.(env|log|sql|md|lock|ini|bak|backup|sh|json|yml|yaml|dist)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

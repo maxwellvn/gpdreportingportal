@@ -20,6 +20,13 @@ if ($kcUserId === '') {
     exit;
 }
 
+// Only link an id this server verified with KingsChat in kc_callback.php; never trust the client's value.
+if (!hash_equals((string)($_SESSION['kc_verified_user_id'] ?? ''), $kcUserId)) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'unverified_kc_user', 'message' => 'Please sign in with KingsChat again to link your account']);
+    exit;
+}
+
 // Check if already linked to the SAME KC account
 $existingKcId = kc_get_kc_by_user_id((int)$_SESSION['user_id']);
 if ($existingKcId === $kcUserId) {

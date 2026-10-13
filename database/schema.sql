@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `name` varchar(100) NOT NULL,
   `password` varchar(255) NOT NULL,
   `email` varchar(100) DEFAULT NULL,
-  `role` enum('admin','admin-manager','user') DEFAULT 'user',
+  `role` enum('admin','admin-manager','rzm') DEFAULT 'rzm',
   `active` tinyint(1) DEFAULT 1,
   `region` varchar(100) NOT NULL,
   `zone` varchar(100) DEFAULT NULL,

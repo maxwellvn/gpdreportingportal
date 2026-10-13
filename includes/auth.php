@@ -2,6 +2,9 @@
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/security.php';
 
+/** Login failures whose message is safe to show the user. */
+class AuthException extends Exception {}
+
 class Auth {
     private $db;
     private $security;
@@ -84,11 +87,11 @@ class Auth {
         }
     }
 
-    public function register($username, $name, $password, $email, $region, $zone, $role = 'user') {
+    public function register($username, $name, $password, $email, $region, $zone, $role = 'rzm') {
         try {
             // Validate input
             $required = ['username', 'name', 'password', 'email', 'region'];
-            if ($role === 'user') {
+            if ($role === 'rzm') {
                 $required[] = 'zone';
             }
             Security::validateRequired($required, compact('username', 'name', 'password', 'email', 'region', 'zone'));
@@ -121,18 +124,76 @@ class Auth {
         }
     }
 
+    const LOGIN_WINDOW_MINUTES = 15;
+    const LOGIN_MAX_PER_USERNAME = 5;
+    const LOGIN_MAX_PER_IP = 20;
+
+    /**
+     * Password login. Throws user-safe messages for throttling and pending accounts.
+     */
     public function login($username, $password) {
         $conn = $this->db->getConnection();
-        $stmt = $conn->prepare("SELECT id, password FROM users WHERE username = ? AND active = 1");
+        $username = trim((string)$username);
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+        if ($this->isLoginThrottled($conn, $username, $ip)) {
+            throw new AuthException('Too many sign-in attempts. Please wait ' . self::LOGIN_WINDOW_MINUTES . ' minutes and try again.');
+        }
+
+        $stmt = $conn->prepare("SELECT id, password, active FROM users WHERE username = ?");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
-        if ($user && password_verify($password, $user['password'])) {
-            $this->userId = $user['id'];
-            self::recordUserVisit((int)$user['id'], 'password');
-            return true;
+        if (!$user || !password_verify((string)$password, $user['password'])) {
+            $this->recordFailedLogin($conn, $username, $ip);
+            return false;
         }
-        return false;
+
+        // Correct password but not yet approved: say so (only after the password checks out, so no username probing)
+        if (!(int)$user['active']) {
+            throw new AuthException('Your account is awaiting approval. Message @gpd-support on KingsChat to have it activated.');
+        }
+
+        try {
+            $conn->prepare("DELETE FROM login_attempts WHERE username = ?")->execute([$username]);
+        } catch (PDOException $e) {
+            error_log('Failed to clear login attempts: ' . $e->getMessage());
+        }
+        $this->userId = $user['id'];
+        self::recordUserVisit((int)$user['id'], 'password');
+        return true;
+    }
+
+    private function isLoginThrottled(PDO $conn, $username, $ip) {
+        try {
+            $stmt = $conn->prepare("
+                SELECT
+                    SUM(username = :username) AS by_user,
+                    SUM(ip_address = :ip) AS by_ip
+                FROM login_attempts
+                WHERE attempted_at > NOW() - INTERVAL " . (int)self::LOGIN_WINDOW_MINUTES . " MINUTE
+                  AND (username = :username2 OR ip_address = :ip2)
+            ");
+            $stmt->execute([':username' => $username, ':ip' => $ip, ':username2' => $username, ':ip2' => $ip]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            return (int)($row['by_user'] ?? 0) >= self::LOGIN_MAX_PER_USERNAME
+                || (int)($row['by_ip'] ?? 0) >= self::LOGIN_MAX_PER_IP;
+        } catch (PDOException $e) {
+            // Table missing (migration not yet run) must not block sign-in
+            error_log('Login throttle check failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function recordFailedLogin(PDO $conn, $username, $ip) {
+        try {
+            $conn->prepare("INSERT INTO login_attempts (username, ip_address) VALUES (?, ?)")
+                 ->execute([mb_substr($username, 0, 100), $ip]);
+            // ponytail: prune on write instead of a cron job
+            $conn->exec("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL 1 DAY");
+        } catch (PDOException $e) {
+            error_log('Failed to record login attempt: ' . $e->getMessage());
+        }
     }
 
     public static function recordUserVisit($userId, $source = 'app') {

@@ -359,7 +359,7 @@ $pdf->Ln(10);
 $nonCompliantQuery = "SELECT DISTINCT u.zone, u.region
     FROM users u
     WHERE u.zone IS NOT NULL
-    AND u.role = 'user'";
+    AND u.role = 'rzm'";
 
 $ncParams = [];
 
