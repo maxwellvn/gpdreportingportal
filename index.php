@@ -105,7 +105,7 @@ $utilCssVersion = @filemtime(__DIR__ . '/assets/css/utilities.css') ?: time();
             <div class="landing-hero-copy">
                 <p class="landing-kicker">Rhapsody of Realities &middot; Global Partnership Distribution</p>
                 <h1 id="home-title">Every zone&rsquo;s monthly report, in one place.</h1>
-                <p class="lead">Submit the month, see what is still due, and follow your zone across the year.</p>
+                <p class="lead">Submit the report for the month, see what is still due, and follow your zone across the year.</p>
                 <div class="landing-cta">
                     <a class="btn btn-brand btn-lg" href="<?php echo $baseUrl; ?>/login.php">Sign in</a>
                     <a class="btn btn-on-dark btn-lg" href="<?php echo $baseUrl; ?>/register.php">Register your zone</a>
@@ -134,7 +134,7 @@ $utilCssVersion = @filemtime(__DIR__ . '/assets/css/utilities.css') ?: time();
                 </li>
                 <li>
                     <span class="num">02</span>
-                    <h3>Submit the month</h3>
+                    <h3>Submit the report for the month</h3>
                     <p>Enter copies, distributions and outreach figures. Drafts save, so you can finish later.</p>
                 </li>
                 <li>
