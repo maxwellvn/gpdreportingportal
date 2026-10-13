@@ -143,7 +143,6 @@ $zoneCount = is_array($REGIONS_ZONES ?? null) ? array_sum(array_map('count', $RE
         .auth-aside-meta { color: rgba(255, 255, 255, 0.75); }
         .auth-aside-body h2 { margin-top: var(--spacing-4); }
         .auth-kicker { display: inline-flex; align-items: center; gap: var(--spacing-2); font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.75); }
-        .auth-kicker::before { content: ""; width: 1.5rem; height: 1px; background: var(--brand-gold); }
         .auth-aside-body p:last-child { margin-top: var(--spacing-5); line-height: 1.6; }
         .auth-aside-meta { font-size: var(--text-xs); }
         .auth-card .page-sub { margin-bottom: var(--spacing-6); }

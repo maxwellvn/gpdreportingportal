@@ -48,7 +48,6 @@ $utilCssVersion = @filemtime(__DIR__ . '/assets/css/utilities.css') ?: time();
         .landing-hero.star-ring::after { right: -10rem; top: -12rem; bottom: auto; opacity: 0.9; }
         .landing-hero-copy { padding-top: var(--spacing-16); max-width: 44rem; }
         .landing-kicker { display: inline-flex; align-items: center; gap: var(--spacing-2); font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.75); }
-        .landing-kicker::before { content: ""; width: 1.5rem; height: 1px; background: var(--brand-gold); }
         .landing-hero h1 { margin-top: var(--spacing-5); font-size: clamp(2.75rem, 6vw, 4.25rem); line-height: 1.02; font-weight: 500; letter-spacing: -0.035em; color: #fff; }
         .landing-hero .lead { margin-top: var(--spacing-5); max-width: 32rem; font-size: var(--text-lg); line-height: 1.5; color: rgba(255, 255, 255, 0.75); }
         .landing-cta { display: flex; flex-wrap: wrap; gap: var(--spacing-3); margin-top: var(--spacing-8); }
