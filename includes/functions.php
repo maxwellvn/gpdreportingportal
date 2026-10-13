@@ -63,9 +63,9 @@ function handleFileUpload($file, $targetDir, $allowedTypes = ['jpg', 'jpeg', 'pn
             return ['success' => false, 'message' => 'Unknown error occurred'];
     }
 
-    // Check file size (5MB limit)
-    if ($file['size'] > 5 * 1024 * 1024) {
-        return ['success' => false, 'message' => 'File size exceeds 5MB limit'];
+    $maximumFileSize = defined('MAX_FILE_SIZE') ? MAX_FILE_SIZE : 10 * 1024 * 1024;
+    if ($file['size'] > $maximumFileSize) {
+        return ['success' => false, 'message' => 'File size exceeds 10MB limit'];
     }
 
     // Check file type
@@ -147,6 +147,18 @@ function uploadFile($file, $targetDir, $allowedTypes = null) {
     }
     
     return $result['filename'];
+}
+
+/**
+ * Allow the next calendar month only during the final UTC day, covering users
+ * whose local timezone has already crossed into a new month.
+ */
+function getLatestAllowedReportMonth(?DateTimeInterface $now = null) {
+    $currentTime = $now
+        ? DateTimeImmutable::createFromInterface($now)
+        : new DateTimeImmutable('now');
+
+    return $currentTime->modify('+1 day')->format('Y-m');
 }
 
 // Delete file

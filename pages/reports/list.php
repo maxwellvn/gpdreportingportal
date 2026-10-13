@@ -98,12 +98,28 @@ if ($isInitialLoad) {
     }
 }
 
-$filterYear = isset($_GET['year']) ? $_GET['year'] : date('Y');
-$filterMonth = isset($_GET['month']) ? $_GET['month'] : ($isInitialLoad ? $defaultMonth : '');
-$filterWeek = isset($_GET['week']) ? $_GET['week'] : '';
-$filterRegion = isset($_GET['region']) ? $_GET['region'] : '';
-$filterZone = isset($_GET['zone']) ? $_GET['zone'] : '';
+$filterYear = isset($_GET['year']) ? trim((string)$_GET['year']) : date('Y');
+$filterMonth = isset($_GET['month']) ? trim((string)$_GET['month']) : ($isInitialLoad ? $defaultMonth : '');
+$filterWeek = isset($_GET['week']) ? trim((string)$_GET['week']) : '';
+$filterRegion = isset($_GET['region']) ? trim((string)$_GET['region']) : '';
+$filterZone = isset($_GET['zone']) ? trim((string)$_GET['zone']) : '';
 $sortOrder = isset($_GET['sort_order']) ? $_GET['sort_order'] : 'desc'; // Default to descending (newest first)
+
+if ($filterYear === 'all') {
+    $filterYear = '';
+}
+if ($filterMonth === 'all') {
+    $filterMonth = '';
+}
+if ($filterWeek === 'all') {
+    $filterWeek = '';
+}
+if ($filterRegion === 'all') {
+    $filterRegion = '';
+}
+if ($filterZone === 'all') {
+    $filterZone = '';
+}
 
 if ($isAdminManager) {
     $filterRegion = $scopedRegion;
@@ -373,6 +389,15 @@ if (!empty($paginationBaseParams)) {
     $missingRzmsExportUrl .= '?' . http_build_query($paginationBaseParams);
 }
 
+$allReportsUrl = 'list.php?' . http_build_query([
+    'year' => 'all',
+    'month' => 'all',
+    'week' => 'all',
+    'region' => 'all',
+    'zone' => 'all',
+    'sort_order' => $sortOrder
+]);
+
 // Get total records for pagination
 $countQuery = "SELECT COUNT(*) as total FROM reports r
                LEFT JOIN users u ON r.user_id = u.id
@@ -497,220 +522,142 @@ require_once '../../layouts/header.php';
 ?>
 
 <style>
-    .reports-list-page .reports-summary-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1rem;
-    }
+/* ── Reports list flat/minimalist ── */
+.rl-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
 
-    .reports-list-page .reports-metrics-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-        gap: 0.75rem;
-    }
+.rl-topbar { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.75rem; }
+.rl-topbar-left h1 { font-size: 1.25rem; font-weight: 600; color: var(--neutral-900); margin: 0 0 0.2rem; }
+.rl-topbar-left p  { font-size: 0.8rem; color: var(--neutral-500); margin: 0; }
+.rl-topbar-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-start; }
 
-    .reports-list-page .reports-card-header {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
+/* Stat grid — same unified-border style as dashboard */
+.rl-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--neutral-200); border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 1.75rem; }
+@media (min-width: 640px)  { .rl-stats { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1024px) { .rl-stats { grid-template-columns: repeat(4, 1fr); } }
+.rl-stat { background: #fff; padding: 1.1rem 1.25rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.rl-stat-label { font-size: 0.72rem; font-weight: 500; color: var(--neutral-400); text-transform: uppercase; letter-spacing: 0.04em; }
+.rl-stat-value { font-size: 1.4rem; font-weight: 600; color: var(--neutral-900); line-height: 1.2; }
+.rl-stat-sub { font-size: 0.72rem; color: var(--neutral-400); margin-top: 0.1rem; }
 
-    .reports-list-page .reports-card-actions {
-        width: 100%;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
+/* Filter section */
+.rl-filter { border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: #fff; overflow: hidden; margin-bottom: 1.75rem; }
+.rl-filter-head { padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.rl-filter-head h2 { font-size: 0.875rem; font-weight: 600; color: var(--neutral-800); margin: 0; }
+.rl-filter-body { padding: 1rem 1.25rem; }
+.rl-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.rl-filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+.rl-filter-group label { font-size: 0.72rem; font-weight: 600; color: var(--neutral-500); text-transform: uppercase; letter-spacing: 0.04em; }
+.rl-filter-group select, .rl-filter-group input[type=text] { font-size: 0.8125rem; padding: 0.45rem 0.6rem; border: 1px solid var(--neutral-300); border-radius: var(--radius-md); color: var(--neutral-800); background: #fff; width: 100%; }
+.rl-filter-group select:focus, .rl-filter-group input:focus { outline: none; border-color: var(--primary-500); box-shadow: 0 0 0 2px var(--primary-100); }
+.rl-filter-group input[disabled] { background: var(--neutral-50); color: var(--neutral-400); }
+.rl-filter-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.rl-filter-actions-left { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.rl-filter-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.rl-pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: var(--radius-full); background: var(--primary-50); color: var(--primary-700); font-size: 0.72rem; font-weight: 600; border: 1px solid var(--primary-100); }
 
-    @media (max-width: 640px) {
-        .reports-list-page .modern-stats-card {
-            padding: 0.875rem;
-            align-items: flex-start;
-            gap: 0.625rem;
-        }
+/* Report row cards */
+.rl-report { border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: #fff; overflow: hidden; margin-bottom: 0.75rem; }
+.rl-report-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--neutral-100); }
+.rl-report-title { font-size: 0.9rem; font-weight: 600; color: var(--neutral-900); margin: 0 0 0.2rem; }
+.rl-report-title a { color: var(--primary-600); text-decoration: none; }
+.rl-report-title a:hover { text-decoration: underline; }
+.rl-report-meta { font-size: 0.78rem; color: var(--neutral-500); display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
+.rl-report-actions { display: flex; gap: 0.4rem; flex-shrink: 0; align-items: flex-start; }
+.rl-report-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--neutral-100); }
+.rl-metric { background: #fff; padding: 0.7rem 1rem; }
+.rl-metric-label { font-size: 0.7rem; font-weight: 500; color: var(--neutral-400); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.2rem; }
+.rl-metric-value { font-size: 1rem; font-weight: 600; color: var(--neutral-900); }
+.rl-report-footer { padding: 0.6rem 1rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
-        .reports-list-page .modern-stats-icon {
-            width: 2.25rem;
-            height: 2.25rem;
-            margin-right: 0;
-        }
+/* Empty state */
+.rl-empty { border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: #fff; padding: 3rem 1.5rem; text-align: center; }
+.rl-empty p { font-size: 0.875rem; color: var(--neutral-400); margin-bottom: 1rem; }
 
-        .reports-list-page .modern-stats-icon i {
-            font-size: 1rem;
-        }
+/* Pagination */
+.rl-pagination { display: flex; justify-content: center; align-items: center; gap: 0.35rem; margin-top: 1.5rem; flex-wrap: wrap; }
+.rl-page-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; height: 2rem; padding: 0 0.5rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md); font-size: 0.8125rem; color: var(--neutral-700); background: #fff; text-decoration: none; transition: background 0.12s; white-space: nowrap; }
+.rl-page-btn:hover { background: var(--neutral-50); }
+.rl-page-btn.active { background: var(--primary-600); border-color: var(--primary-600); color: #fff; font-weight: 600; }
+.rl-page-info { font-size: 0.8rem; color: var(--neutral-500); padding: 0 0.5rem; }
 
-        .reports-list-page .modern-stats-label {
-            font-size: 0.78rem;
-            line-height: 1.2;
-            word-break: break-word;
-        }
-
-        .reports-list-page .modern-stats-value {
-            font-size: 1.1rem;
-            line-height: 1.2;
-            word-break: break-word;
-        }
-    }
+@media (max-width: 480px) {
+    .rl-page { padding: 1.25rem 0.9rem 2.5rem; }
+    .rl-topbar { flex-direction: column; }
+    .rl-stat-value { font-size: 1.1rem; }
+}
 </style>
 
-<div class="modern-container reports-list-page">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900">Reports Overview</h1>
-            <p class="mt-1 text-sm text-gray-600">
-                Comprehensive reporting dashboard with key metrics and insights
-            </p>
-            <p class="mt-1 text-sm font-medium text-primary-600">
-                Reporting Period: <?php echo !empty($filterYear) ? htmlspecialchars($filterYear) : 'All Time'; ?>
-            </p>
+<div class="rl-page">
+
+    <!-- Breadcrumb -->
+    <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--neutral-400);margin-bottom:1rem;flex-wrap:wrap;">
+        <a href="<?php echo BASE_URL; ?>/dashboard.php" style="color:var(--neutral-500);text-decoration:none;"><i class="fas fa-home" style="font-size:0.7rem;"></i> Dashboard</a>
+        <span style="color:var(--neutral-300);">/</span>
+        <span><?php echo ($isAdmin || $isAdminManager) ? 'Reports Overview' : 'My Reports'; ?></span>
+    </div>
+
+    <!-- Top bar -->
+    <div class="rl-topbar">
+        <div class="rl-topbar-left">
+            <h1><?php echo ($isAdmin || $isAdminManager) ? 'Reports Overview' : 'My Reports'; ?></h1>
+            <p>Period: <?php echo !empty($filterYear) ? htmlspecialchars((string)$filterYear) : 'All Time'; ?><?php if (!empty($filterMonth)): ?> &middot; <?php echo date('F Y', strtotime($filterMonth . '-01')); ?><?php endif; ?></p>
         </div>
-        <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
-            <button type="button" onclick="openExportModal()" class="modern-button modern-button-secondary">
-                <i class="fas fa-download modern-button-icon"></i> Export Reports
+        <div class="rl-topbar-actions">
+            <button type="button" onclick="openExportModal()" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">
+                <i class="fas fa-download modern-button-icon"></i> Export
             </button>
             <?php if ($isAdmin): ?>
-            <a href="<?php echo htmlspecialchars($missingRzmsExportUrl); ?>" class="modern-button modern-button-secondary">
-                <i class="fas fa-file-export modern-button-icon"></i> Export Missing Compliance List
+            <a href="<?php echo htmlspecialchars($missingRzmsExportUrl); ?>" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">
+                <i class="fas fa-file-export modern-button-icon"></i> Compliance List
             </a>
             <?php endif; ?>
             <?php if (!$isAdminManager): ?>
-            <a href="create.php" class="modern-button modern-button-primary">
+            <a href="create.php" class="modern-button modern-button-primary" style="font-size:0.8125rem;">
                 <i class="fas fa-plus modern-button-icon"></i> Submit Report
             </a>
             <?php endif; ?>
         </div>
     </div>
 
-    <!-- Statistics Widgets -->
-    <div class="reports-summary-grid mb-6">
-        <!-- Total Reports Widget -->
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--primary-600);">
-                <i class="fas fa-file-alt"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">Total Reports Submitted</div>
-                <div class="modern-stats-value"><?php echo number_format($totalReports); ?></div>
-                <?php if (!empty($filterMonth) || !empty($filterZone) || !empty($filterRegion)): ?>
-                <div class="text-xs text-gray-500 mt-1">Filtered results</div>
-                <?php endif; ?>
-            </div>
+    <!-- Summary stats -->
+    <div class="rl-stats">
+        <div class="rl-stat">
+            <span class="rl-stat-label">Reports</span>
+            <span class="rl-stat-value"><?php echo number_format($totalReports); ?></span>
         </div>
-
-        <!-- Unique Zones Widget -->
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--success-600);">
-                <i class="fas fa-map-marker-alt"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">Zones with Reports</div>
-                <div class="modern-stats-value"><?php echo number_format($uniqueZones); ?></div>
-                <?php if (!empty($filterMonth) || !empty($filterRegion)): ?>
-                <div class="text-xs text-gray-500 mt-1">Filtered results</div>
-                <?php endif; ?>
-            </div>
+        <div class="rl-stat">
+            <span class="rl-stat-label">Zones</span>
+            <span class="rl-stat-value"><?php echo number_format($uniqueZones); ?></span>
         </div>
-
-        <!-- Total Copies Widget -->
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--primary-700);">
-                <i class="fas fa-book"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">Total Copies Sponsored</div>
-                <div class="modern-stats-value"><?php echo number_format($totalCopies); ?></div>
-                <?php if (!empty($filterMonth) || !empty($filterZone) || !empty($filterRegion)): ?>
-                <div class="text-xs text-gray-500 mt-1">Filtered results</div>
-                <?php endif; ?>
-            </div>
+        <div class="rl-stat">
+            <span class="rl-stat-label">Copies Sponsored</span>
+            <span class="rl-stat-value"><?php echo number_format($totalCopies); ?></span>
         </div>
-
-        <!-- Total Distributions Widget -->
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--primary-800);">
-                <i class="fas fa-truck"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">Total Distributions</div>
-                <div class="modern-stats-value"><?php echo number_format($totalDistributions); ?></div>
-                <?php if (!empty($filterMonth) || !empty($filterZone) || !empty($filterRegion)): ?>
-                <div class="text-xs text-gray-500 mt-1">Filtered results</div>
-                <?php endif; ?>
-            </div>
+        <div class="rl-stat">
+            <span class="rl-stat-label">Distributions</span>
+            <span class="rl-stat-value"><?php echo number_format($totalDistributions); ?></span>
         </div>
-
-        <!-- Total Souls Won Widget -->
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--danger-500);">
-                <i class="fas fa-heart"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">Total Souls Won</div>
-                <div class="modern-stats-value"><?php echo number_format($totalSoulsWon); ?></div>
-                <?php if (!empty($filterMonth) || !empty($filterZone) || !empty($filterRegion)): ?>
-                <div class="text-xs text-gray-500 mt-1">Filtered results</div>
-                <?php endif; ?>
-            </div>
+        <div class="rl-stat">
+            <span class="rl-stat-label">Souls Won</span>
+            <span class="rl-stat-value"><?php echo number_format($totalSoulsWon); ?></span>
         </div>
-
-        <!-- Total New Partners Widget -->
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--info-500);">
-                <i class="fas fa-handshake"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">Total New Partners</div>
-                <div class="modern-stats-value"><?php echo number_format($totalNewPartners); ?></div>
-                <?php if (!empty($filterMonth) || !empty($filterZone) || !empty($filterRegion)): ?>
-                <div class="text-xs text-gray-500 mt-1">Filtered results</div>
-                <?php endif; ?>
-            </div>
+        <div class="rl-stat">
+            <span class="rl-stat-label">New Partners</span>
+            <span class="rl-stat-value"><?php echo number_format($totalNewPartners); ?></span>
         </div>
-
-        <!-- Total Rhapsody Cells Widget -->
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--warning-500);">
-                <i class="fas fa-th-large"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">Total Rhapsody Cells</div>
-                <div class="modern-stats-value"><?php echo number_format($totalRhapsodyCells); ?></div>
-                <?php if (!empty($filterMonth) || !empty($filterZone) || !empty($filterRegion)): ?>
-                <div class="text-xs text-gray-500 mt-1">Filtered results</div>
-                <?php endif; ?>
-            </div>
+        <div class="rl-stat">
+            <span class="rl-stat-label">Rhapsody Cells</span>
+            <span class="rl-stat-value"><?php echo number_format($totalRhapsodyCells); ?></span>
         </div>
-
-        <!-- Total New Churches Widget -->
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--success-700);">
-                <i class="fas fa-church"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">Total New Churches</div>
-                <div class="modern-stats-value"><?php echo number_format($totalNewChurches); ?></div>
-                <?php if (!empty($filterMonth) || !empty($filterZone) || !empty($filterRegion)): ?>
-                <div class="text-xs text-gray-500 mt-1">Filtered results</div>
-                <?php endif; ?>
-            </div>
+        <div class="rl-stat">
+            <span class="rl-stat-label">New Churches</span>
+            <span class="rl-stat-value"><?php echo number_format($totalNewChurches); ?></span>
         </div>
-
         <?php if ($isAdmin): ?>
-        <div class="modern-stats-card">
-            <div class="modern-stats-icon" style="background-color: var(--primary-900);">
-                <i class="fas fa-percentage"></i>
-            </div>
-            <div class="modern-stats-content">
-                <div class="modern-stats-label">RZM Submission Rate</div>
-                <div class="modern-stats-value"><?php echo number_format($rzmSubmissionRate, 1); ?>%</div>
-                <div class="text-xs text-gray-500 mt-1">
-                    Submitted: <?php echo number_format($submittedRzms); ?> of <?php echo number_format($totalRzms); ?> | Not Submitted: <?php echo number_format($notSubmittedRzms); ?>
-                </div>
-                <div class="text-xs text-gray-500 mt-1">
-                    Based on active RZMs in the current filters
-                </div>
-            </div>
+        <div class="rl-stat">
+            <span class="rl-stat-label">RZM Submission Rate</span>
+            <span class="rl-stat-value"><?php echo number_format($rzmSubmissionRate, 1); ?>%</span>
+            <span class="rl-stat-sub"><?php echo number_format($submittedRzms); ?> / <?php echo number_format($totalRzms); ?> submitted</span>
         </div>
         <?php endif; ?>
     </div>
@@ -718,13 +665,10 @@ require_once '../../layouts/header.php';
     <!-- Export Modal -->
     <div id="exportModal" class="fixed z-50 inset-0 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <!-- Background overlay -->
             <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeExportModal()"></div>
-
-            <!-- Modal panel -->
             <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <div class="modern-card-header">
-                    <h3 class="modern-card-title">Export Reports</h3>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200);">
+                    <h3 style="font-size:0.9rem;font-weight:600;color:var(--neutral-900);margin:0;">Export Reports</h3>
                 </div>
                 <form action="../../includes/export_reports.php" method="GET" class="modern-card-body">
                     <div class="space-y-4">
@@ -808,285 +752,186 @@ require_once '../../layouts/header.php';
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
+            </div><!-- /.modal-panel -->
+        </div><!-- /.modal-outer -->
+    </div><!-- /#exportModal -->
 
     <!-- Filter Section -->
-    <div class="modern-card mb-6">
-        <div class="modern-card-header">
-            <h2 class="modern-card-title">Filter Reports</h2>
+    <div class="rl-filter">
+        <div class="rl-filter-head">
+            <h2>Filters</h2>
+            <div class="rl-filter-pills">
+                <span class="rl-pill"><?php echo !empty($filterMonth) ? date('F Y', strtotime($filterMonth . '-01')) : 'All Months'; ?></span>
+                <span class="rl-pill"><?php echo !empty($filterYear) ? htmlspecialchars((string)$filterYear) : 'All Years'; ?></span>
+                <?php if ($isAdmin && !empty($filterRegion)): ?><span class="rl-pill"><?php echo htmlspecialchars($filterRegion); ?></span><?php endif; ?>
+                <?php if (!empty($filterZone)): ?><span class="rl-pill"><?php echo htmlspecialchars($filterZone); ?></span><?php endif; ?>
+            </div>
         </div>
-        <div class="modern-card-body">
-            <form method="GET" id="filterForm" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                <div class="modern-form-group">
-                    <label for="filter_year" class="modern-form-label">Year</label>
-                    <select id="filter_year" name="year" class="modern-form-input select2">
-                        <option value="">All Years</option>
-                        <?php foreach ($years as $y): ?>
-                        <option value="<?php echo htmlspecialchars($y); ?>" <?php echo $filterYear == $y ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($y); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
+        <div class="rl-filter-body">
+            <form method="GET" id="filterForm">
+                <div class="rl-filter-grid">
+                    <div class="rl-filter-group">
+                        <label for="filter_year">Year</label>
+                        <select id="filter_year" name="year">
+                            <option value="all" <?php echo $filterYear === '' ? 'selected' : ''; ?>>All Years</option>
+                            <?php foreach ($years as $y): ?>
+                            <option value="<?php echo htmlspecialchars($y); ?>" <?php echo $filterYear == $y ? 'selected' : ''; ?>><?php echo htmlspecialchars($y); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="rl-filter-group">
+                        <label for="month">Report Month</label>
+                        <select id="month" name="month">
+                            <option value="all" <?php echo $filterMonth === '' ? 'selected' : ''; ?>>All Months</option>
+                            <?php foreach ($months as $month): ?>
+                            <option value="<?php echo htmlspecialchars($month['month_value']); ?>" <?php echo $filterMonth === $month['month_value'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($month['month_label']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="rl-filter-group">
+                        <label for="week">Week</label>
+                        <select id="week" name="week">
+                            <option value="all" <?php echo $filterWeek === '' ? 'selected' : ''; ?>>All Weeks</option>
+                            <?php if (empty($availableWeeks)): ?>
+                            <option value="" disabled>Select a month first</option>
+                            <?php else: foreach ($availableWeeks as $week): ?>
+                            <option value="<?php echo htmlspecialchars($week['value']); ?>" <?php echo $filterWeek === $week['value'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($week['label']); ?></option>
+                            <?php endforeach; endif; ?>
+                        </select>
+                    </div>
+                    <?php if ($isAdmin): ?>
+                    <div class="rl-filter-group">
+                        <label for="region">Region</label>
+                        <select id="region" name="region">
+                            <option value="all" <?php echo $filterRegion === '' ? 'selected' : ''; ?>>All Regions</option>
+                            <?php foreach ($regions as $region): ?>
+                            <option value="<?php echo htmlspecialchars($region); ?>" <?php echo $filterRegion === $region ? 'selected' : ''; ?>><?php echo htmlspecialchars($region); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="rl-filter-group">
+                        <label for="zone">Zone</label>
+                        <select id="zone" name="zone">
+                            <option value="all" <?php echo $filterZone === '' ? 'selected' : ''; ?>>All Zones</option>
+                            <?php foreach ($zones as $zone): ?>
+                            <option value="<?php echo htmlspecialchars($zone); ?>" <?php echo $filterZone === $zone ? 'selected' : ''; ?>><?php echo htmlspecialchars($zone); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php elseif ($isAdminManager): ?>
+                    <input type="hidden" name="region" value="<?php echo htmlspecialchars($scopedRegion); ?>">
+                    <div class="rl-filter-group">
+                        <label>Region</label>
+                        <input type="text" value="<?php echo htmlspecialchars($scopedRegion); ?>" disabled>
+                    </div>
+                    <div class="rl-filter-group">
+                        <label for="zone">Zone</label>
+                        <select id="zone" name="zone">
+                            <option value="all" <?php echo $filterZone === '' ? 'selected' : ''; ?>>All Zones</option>
+                            <?php foreach ($zones as $zone): ?>
+                            <option value="<?php echo htmlspecialchars($zone); ?>" <?php echo $filterZone === $zone ? 'selected' : ''; ?>><?php echo htmlspecialchars($zone); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
+                    <div class="rl-filter-group">
+                        <label for="sort_order">Sort</label>
+                        <select id="sort_order" name="sort_order">
+                            <option value="desc" <?php echo $sortOrder === 'desc' ? 'selected' : ''; ?>>Newest First</option>
+                            <option value="asc" <?php echo $sortOrder === 'asc' ? 'selected' : ''; ?>>Oldest First</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="modern-form-group">
-                    <label for="month" class="modern-form-label">Report Month</label>
-                    <select id="month" name="month" class="modern-form-input select2">
-                        <option value="">All Months</option>
-                        <?php foreach ($months as $month): ?>
-                        <option value="<?php echo htmlspecialchars($month['month_value']); ?>"
-                                <?php echo $filterMonth === $month['month_value'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($month['month_label']); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="modern-form-group">
-                    <label for="week" class="modern-form-label">Week</label>
-                    <select id="week" name="week" class="modern-form-input select2">
-                        <option value="">All Weeks</option>
-                        <?php if (empty($availableWeeks)): ?>
-                        <option value="" disabled>Select a month first</option>
-                        <?php else: ?>
-                        <?php foreach ($availableWeeks as $week): ?>
-                        <option value="<?php echo htmlspecialchars($week['value']); ?>"
-                                <?php echo $filterWeek === $week['value'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($week['label']); ?>
-                        </option>
-                        <?php endforeach; ?>
-                        <?php endif; ?>
-                    </select>
-                </div>
-                <?php if ($isAdmin): ?>
-                <div class="modern-form-group">
-                    <label for="region" class="modern-form-label">Region</label>
-                    <select id="region" name="region" class="modern-form-input select2">
-                        <option value="">All Regions</option>
-                        <?php foreach ($regions as $region): ?>
-                        <option value="<?php echo htmlspecialchars($region); ?>" <?php echo $filterRegion === $region ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($region); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="modern-form-group">
-                    <label for="zone" class="modern-form-label">Zone</label>
-                    <select id="zone" name="zone" class="modern-form-input select2">
-                        <option value="">All Zones</option>
-                        <?php foreach ($zones as $zone): ?>
-                        <option value="<?php echo htmlspecialchars($zone); ?>" <?php echo $filterZone === $zone ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($zone); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <?php elseif ($isAdminManager): ?>
-                <input type="hidden" name="region" value="<?php echo htmlspecialchars($scopedRegion); ?>">
-                <div class="modern-form-group">
-                    <label class="modern-form-label">Region</label>
-                    <input type="text" class="modern-form-input" value="<?php echo htmlspecialchars($scopedRegion); ?>" disabled>
-                </div>
-                <div class="modern-form-group">
-                    <label for="zone" class="modern-form-label">Zone</label>
-                    <select id="zone" name="zone" class="modern-form-input select2">
-                        <option value="">All Zones</option>
-                        <?php foreach ($zones as $zone): ?>
-                        <option value="<?php echo htmlspecialchars($zone); ?>" <?php echo $filterZone === $zone ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($zone); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <?php endif; ?>
-                <div class="modern-form-group">
-                    <label for="sort_order" class="modern-form-label">Sort By Submission Time</label>
-                    <select id="sort_order" name="sort_order" class="modern-form-input select2">
-                        <option value="desc" <?php echo $sortOrder === 'desc' ? 'selected' : ''; ?>>Newest First</option>
-                        <option value="asc" <?php echo $sortOrder === 'asc' ? 'selected' : ''; ?>>Oldest First</option>
-                    </select>
-                </div>
-                <div class="flex items-end space-x-2">
-                    <button type="submit" class="modern-button modern-button-primary">
-                        <i class="fas fa-filter modern-button-icon"></i> Apply Filters
-                    </button>
-                    <a href="list.php" class="modern-button modern-button-secondary">
-                        <i class="fas fa-times modern-button-icon"></i> Clear
-                    </a>
+                <div class="rl-filter-actions">
+                    <div class="rl-filter-actions-left">
+                        <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;">
+                            <i class="fas fa-filter modern-button-icon"></i> Apply
+                        </button>
+                        <a href="<?php echo htmlspecialchars($allReportsUrl); ?>" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">All Reports</a>
+                        <a href="list.php" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">Reset</a>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
     <?php if (empty($reports)): ?>
-    <div class="modern-card p-8 text-center">
-        <div class="flex flex-col items-center justify-center py-12">
-            <i class="fas fa-file-alt text-4xl text-gray-300 mb-4"></i>
-            <p class="text-gray-500 mb-4">No reports found. Start by creating your first report.</p>
-            <?php if (!$isAdminManager): ?>
-            <a href="create.php" class="modern-button modern-button-primary">
-                <i class="fas fa-plus modern-button-icon"></i> Submit Report
-            </a>
-            <?php endif; ?>
-        </div>
+    <div class="rl-empty">
+        <i class="fas fa-file-alt" style="font-size:2rem;color:var(--neutral-300);margin-bottom:0.75rem;"></i>
+        <p>No reports found for the selected filters.</p>
+        <?php if (!$isAdminManager): ?>
+        <a href="create.php" class="modern-button modern-button-primary" style="font-size:0.8125rem;">
+            <i class="fas fa-plus modern-button-icon"></i> Submit Report
+        </a>
+        <?php endif; ?>
     </div>
     <?php else: ?>
-    <div class="grid grid-cols-1 gap-6">
-        <?php foreach ($reports as $report): ?>
-        <div class="modern-card overflow-hidden">
-            <div class="modern-card-header reports-card-header">
-                <div>
-                    <h3 class="text-lg font-medium flex items-center">
-                        <a href="view.php?id=<?php echo $report['id']; ?>" class="text-primary-600 hover:text-primary-700">
-                            Report #<?php echo $report['id']; ?>
-                        </a>
-                        <span class="mx-2 text-gray-400">|</span>
-                        <span class="text-lg font-semibold text-gray-800"><?php echo htmlspecialchars($report['zone']); ?></span>
-                    </h3>
-                    <div class="mt-1 text-sm text-gray-500">
-                        <span class="font-medium"><?php echo htmlspecialchars($report['name']); ?></span>
-                        <span class="mx-1">•</span>
-                        <span><?php echo htmlspecialchars($report['region']); ?></span>
-                    </div>
-                    <div class="mt-1 text-sm text-gray-500">
-                        <span class="font-medium">Report Month:</span>
-                        <span><?php echo date('F Y', strtotime($report['report_month'])); ?></span>
-                        <span class="mx-1">•</span>
-                        <span>Submitted: <?php echo date('M j, Y', strtotime($report['created_at'])); ?></span>
-                    </div>
-                </div>
-                <div class="reports-card-actions">
-                    <a href="view.php?id=<?php echo $report['id']; ?>" class="modern-button modern-button-primary">
-                        View Details
-                    </a>
-                    <?php if (Auth::isAdmin()): ?>
-                    <button onclick="deleteReport(<?php echo $report['id']; ?>)" class="modern-button modern-button-danger">
-                        Delete
-                    </button>
+
+    <?php foreach ($reports as $report): ?>
+    <div class="rl-report">
+        <div class="rl-report-head">
+            <div>
+                <p class="rl-report-title">
+                    <a href="view.php?id=<?php echo $report['id']; ?>">#<?php echo $report['id']; ?> &mdash; <?php echo date('F Y', strtotime($report['report_month'])); ?></a>
+                    <?php if ($isAdmin || $isAdminManager): ?>
+                    <span style="font-weight:400;color:var(--neutral-500);">&nbsp;&middot;&nbsp;<?php echo htmlspecialchars($report['zone'] ?? ''); ?></span>
                     <?php endif; ?>
+                </p>
+                <div class="rl-report-meta">
+                    <?php if ($isAdmin || $isAdminManager): ?>
+                    <span><?php echo htmlspecialchars($report['name'] ?? ''); ?></span>
+                    <span><?php echo htmlspecialchars($report['region'] ?? ''); ?></span>
+                    <?php endif; ?>
+                    <span>Submitted <?php echo date('M j, Y', strtotime($report['created_at'])); ?></span>
                 </div>
             </div>
-            <div class="modern-card-body">
-                <div class="reports-metrics-grid mb-4">
-                    <!-- Key Metrics -->
-                    <div class="modern-stats-card">
-                        <div class="modern-stats-icon" style="background-color: var(--primary-600);">
-                            <i class="fas fa-book"></i>
-                        </div>
-                        <div class="modern-stats-content">
-                            <div class="modern-stats-label">Total Copies Sponsored</div>
-                            <div class="modern-stats-value"><?php echo number_format($report['total_copies']); ?></div>
-                        </div>
-                    </div>
-                    <div class="modern-stats-card">
-                        <div class="modern-stats-icon" style="background-color: var(--primary-700);">
-                            <i class="fas fa-share-alt"></i>
-                        </div>
-                        <div class="modern-stats-content">
-                            <div class="modern-stats-label">Total Copies Distributed</div>
-                            <div class="modern-stats-value"><?php echo number_format($report['total_distribution']); ?></div>
-                        </div>
-                    </div>
-                    <div class="modern-stats-card">
-                        <div class="modern-stats-icon" style="background-color: var(--success-500);">
-                            <i class="fas fa-heart"></i>
-                        </div>
-                        <div class="modern-stats-content">
-                            <div class="modern-stats-label">Souls Won</div>
-                            <div class="modern-stats-value"><?php echo number_format($report['souls_won']); ?></div>
-                        </div>
-                    </div>
-                    <div class="modern-stats-card">
-                        <div class="modern-stats-icon" style="background-color: var(--warning-500);">
-                            <i class="fas fa-th-large"></i>
-                        </div>
-                        <div class="modern-stats-content">
-                            <div class="modern-stats-label">Rhapsody Cells</div>
-                            <div class="modern-stats-value"><?php echo number_format($report['rhapsody_cells']); ?></div>
-                        </div>
-                    </div>
-                    <div class="modern-stats-card">
-                        <div class="modern-stats-icon" style="background-color: var(--success-700);">
-                            <i class="fas fa-church"></i>
-                        </div>
-                        <div class="modern-stats-content">
-                            <div class="modern-stats-label">New Churches</div>
-                            <div class="modern-stats-value"><?php echo number_format($report['new_churches']); ?></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <?php if ($report['testimonies_file']): ?>
-                    <span class="modern-badge modern-badge-primary">
-                        <i class="fas fa-file-alt mr-2"></i> Has Testimonies
-                    </span>
-                    <?php endif; ?>
-
-                    <?php if ($report['innovations_file']): ?>
-                    <span class="modern-badge modern-badge-success">
-                        <i class="fas fa-lightbulb mr-2"></i> Has Innovations
-                    </span>
-                    <?php endif; ?>
-
-                    <?php if ((int)($report['image_count'] ?? 0) > 0): ?>
-                    <span class="modern-badge modern-badge-primary">
-                        <i class="fas fa-images mr-2"></i> <?php echo number_format((int)$report['image_count']); ?> Pictures
-                    </span>
-                    <?php endif; ?>
-                </div>
+            <div class="rl-report-actions">
+                <a href="view.php?id=<?php echo $report['id']; ?>" class="modern-button modern-button-secondary" style="font-size:0.8rem;">View</a>
+                <?php if (Auth::isAdmin()): ?>
+                <button onclick="deleteReport(<?php echo $report['id']; ?>)" class="modern-button modern-button-danger" style="font-size:0.8rem;">Delete</button>
+                <?php endif; ?>
             </div>
         </div>
-        <?php endforeach; ?>
+        <div class="rl-report-metrics">
+            <div class="rl-metric"><div class="rl-metric-label">Copies Sponsored</div><div class="rl-metric-value"><?php echo number_format($report['total_copies']); ?></div></div>
+            <div class="rl-metric"><div class="rl-metric-label">Distributed</div><div class="rl-metric-value"><?php echo number_format($report['total_distribution']); ?></div></div>
+            <div class="rl-metric"><div class="rl-metric-label">Souls Won</div><div class="rl-metric-value"><?php echo number_format($report['souls_won']); ?></div></div>
+            <div class="rl-metric"><div class="rl-metric-label">Rhapsody Cells</div><div class="rl-metric-value"><?php echo number_format($report['rhapsody_cells']); ?></div></div>
+            <div class="rl-metric"><div class="rl-metric-label">New Churches</div><div class="rl-metric-value"><?php echo number_format($report['new_churches']); ?></div></div>
+        </div>
+        <?php if ($report['testimonies_file'] || $report['innovations_file'] || (int)($report['image_count'] ?? 0) > 0): ?>
+        <div class="rl-report-footer">
+            <?php if ($report['testimonies_file']): ?>
+            <span class="modern-badge modern-badge-primary"><i class="fas fa-file-alt mr-1"></i> Testimonies</span>
+            <?php endif; ?>
+            <?php if ($report['innovations_file']): ?>
+            <span class="modern-badge modern-badge-success"><i class="fas fa-lightbulb mr-1"></i> Innovations</span>
+            <?php endif; ?>
+            <?php if ((int)($report['image_count'] ?? 0) > 0): ?>
+            <span class="modern-badge modern-badge-primary"><i class="fas fa-images mr-1"></i> <?php echo number_format((int)$report['image_count']); ?> Pictures</span>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
     </div>
+    <?php endforeach; ?>
 
     <!-- Pagination -->
     <?php if ($totalPages > 1): ?>
-    <div class="mt-6 flex justify-center">
-        <nav class="flex items-center space-x-1" aria-label="Pagination">
-            <?php if ($page > 1): ?>
-            <a href="?<?php echo htmlspecialchars(http_build_query(array_merge($paginationBaseParams, ['page' => ($page - 1)]))); ?>"
-               class="modern-button modern-button-secondary">
-                <i class="fas fa-chevron-left text-xs mr-1"></i> Previous
-            </a>
-            <?php endif; ?>
-
-            <div class="hidden sm:flex space-x-1">
-                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                <a href="?<?php echo htmlspecialchars(http_build_query(array_merge($paginationBaseParams, ['page' => $i]))); ?>"
-                   class="inline-flex items-center justify-center w-8 h-8 rounded-md border <?php echo $i === $page ? 'border-primary-500 bg-primary-50 text-primary-600' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'; ?>">
-                    <?php echo $i; ?>
-                </a>
-                <?php endfor; ?>
-            </div>
-
-            <div class="sm:hidden flex items-center px-4 text-sm text-gray-700">
-                Page <?php echo $page; ?> of <?php echo $totalPages; ?>
-            </div>
-
-            <?php if ($page < $totalPages): ?>
-            <a href="?<?php echo htmlspecialchars(http_build_query(array_merge($paginationBaseParams, ['page' => ($page + 1)]))); ?>"
-               class="modern-button modern-button-secondary">
-                Next <i class="fas fa-chevron-right text-xs ml-1"></i>
-            </a>
-            <?php endif; ?>
-        </nav>
+    <div class="rl-pagination">
+        <?php if ($page > 1): ?>
+        <a href="?<?php echo htmlspecialchars(http_build_query(array_merge($paginationBaseParams, ['page' => $page - 1]))); ?>" class="rl-page-btn">&larr; Prev</a>
+        <?php endif; ?>
+        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+        <a href="?<?php echo htmlspecialchars(http_build_query(array_merge($paginationBaseParams, ['page' => $i]))); ?>" class="rl-page-btn <?php echo $i === $page ? 'active' : ''; ?>"><?php echo $i; ?></a>
+        <?php endfor; ?>
+        <?php if ($page < $totalPages): ?>
+        <a href="?<?php echo htmlspecialchars(http_build_query(array_merge($paginationBaseParams, ['page' => $page + 1]))); ?>" class="rl-page-btn">Next &rarr;</a>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Select2 for all select elements
-            $('.select2').select2({
-                theme: 'default',
-                width: '100%',
-                placeholder: 'Select an option',
-                allowClear: true
-            });
-            
-            // Initialize Select2 for export modal dropdowns when modal opens
-            // Don't initialize on page load, initialize when modal opens
-            
-            // Function to delete report with confirmation
             window.deleteReport = function(reportId) {
                 Swal.fire({
                     title: 'Are you sure?',
@@ -1147,22 +992,6 @@ require_once '../../layouts/header.php';
                 $('#export_sort_order').val(currentSortOrder);
 
                 $('#exportModal').removeClass('hidden');
-
-                // Initialize Select2 for export modal dropdowns after modal is visible
-                // Destroy first if already initialized
-                $('#exportModal select').each(function() {
-                    if ($(this).data('select2')) {
-                        $(this).select2('destroy');
-                    }
-                });
-
-                // Re-initialize with proper settings
-                $('#exportModal select').select2({
-                    theme: 'default',
-                    width: '100%',
-                    allowClear: true,
-                    dropdownParent: $('#exportModal')
-                });
             };
             
             // Function to close export modal

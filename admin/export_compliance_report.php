@@ -28,8 +28,8 @@ $filterMonth = isset($_GET['month']) ? $_GET['month'] : '';
 $filterYear = isset($_GET['year']) ? $_GET['year'] : '';
 $filterComplianceStatus = isset($_GET['compliance_status']) ? $_GET['compliance_status'] : '';
 
-// Load zones data
-$zonesData = json_decode(file_get_contents('../config/zones.json'), true);
+// Load the canonical API hierarchy through the shared cache/fallback layer.
+$zonesData = $REGIONS_ZONES;
 
 // Build filter conditions
 $whereClause = "WHERE 1=1";

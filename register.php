@@ -3,6 +3,10 @@ require_once 'config/config.php';
 require_once 'includes/database.php';
 require_once 'includes/kc_link.php';
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -63,9 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     kc_link_user_to_kc($newUserId, (string)$_SESSION['pending_kc_user_id']);
                     unset($_SESSION['pending_kc_user_id']);
                     unset($_SESSION['pending_kc_name']);
-                    $success = "Registration submitted for approval. KingsChat linked.";
+                    $success = "Registration submitted successfully. Your account is currently pending approval. Your KingsChat account has been linked. Please message @gpd-tech on KingsChat and request approval for your Reporting Portal account before you try to sign in.";
                 } else {
-                    $success = "Registration submitted for approval.";
+                    $success = "Registration submitted successfully. Your account is currently pending approval. Please message @gpd-tech on KingsChat and request approval for your Reporting Portal account before you try to sign in.";
                 }
                 // Redirect to login page with success message
                 header('Location: ' . BASE_URL . '/login.php?success=' . urlencode($success));
@@ -90,6 +94,7 @@ if (isset($_GET['success']) && empty($success)) {
 
 // Define base URL from config
 $baseUrl = defined('BASE_URL') ? BASE_URL : '';
+$appJsVersion = @filemtime(__DIR__ . '/assets/js/app.js') ?: time();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -97,9 +102,11 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - GPD Reports</title>
-    <link rel="icon" type="image/webp" href="<?php echo $baseUrl; ?>/assets/images/logo.webp">
+    <link rel="icon" type="image/webp" href="<?php echo $baseUrl; ?>/assets/images/logo-rc.webp">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="<?php echo $baseUrl; ?>/assets/css/components.css" rel="stylesheet">
     <link href="<?php echo $baseUrl; ?>/assets/css/modern-theme.css" rel="stylesheet">
@@ -111,12 +118,12 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
     <!-- SweetAlert2 - Beautiful Alerts and Modals -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
-    <!-- jQuery and Select2 for enhanced dropdowns -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link href="<?php echo $baseUrl; ?>/assets/css/select2-custom.css" rel="stylesheet" />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    
+
+    <!-- Base URL and App JS (button/form loading states, page transitions) -->
+    <script>window.BASE_URL = '<?php echo $baseUrl; ?>'; window.IS_LOGGED_IN = false;</script>
+    <script src="<?php echo $baseUrl; ?>/assets/js/app.js?v=<?php echo $appJsVersion; ?>"></script>
+
     <script>
     // Toast notification function
     function showToast(message, type = 'success', duration = 3000) {
@@ -141,48 +148,282 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
         });
     }
     
-    // Initialize Select2
-    $(document).ready(function() {
-        // Initialize Select2 after the form is populated
-        setTimeout(function() {
-            $('.select2').select2({
-                theme: 'default',
-                width: '100%',
-                placeholder: 'Select an option',
-                allowClear: true,
-                minimumResultsForSearch: 6
-            });
-        }, 500); // Small delay to ensure form is populated first
-    });
     </script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-image: url('<?php echo $baseUrl; ?>/assets/images/background.jpg');
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-            background-repeat: no-repeat;
+        :root {
+            --portal-blue: #0087cd;
+            --portal-blue-dark: #004467;
+            --portal-bg: #e3e3e3;
+            --portal-text: rgba(0, 0, 0, 0.9);
         }
-        .auth-overlay {
-            background-color: rgba(255, 255, 255, 0.95);
-            border-radius: 1rem;
-            backdrop-filter: blur(10px);
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--portal-text);
+            background: var(--portal-bg);
+            overflow-x: hidden;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        /* ─── shared hero environment (mirrors index.php) ─── */
+        .portal-home {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            min-height: 100svh;
+        }
+
+        /* yellow corner flares — pinned to the viewport so they stay put while the form scrolls */
+        .portal-home::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(42% 58% at 19.5% 90%, rgba(255, 245, 0, 0.95) 0%, rgba(255, 245, 0, 0.58) 44%, transparent 76%),
+                radial-gradient(30% 42% at 60.5% 104%, rgba(255, 245, 0, 0.9) 0%, rgba(255, 245, 0, 0.52) 44%, transparent 74%),
+                radial-gradient(30% 42% at 88% 92%, rgba(255, 245, 0, 0.88) 0%, rgba(255, 245, 0, 0.5) 44%, transparent 74%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Ellipse 14 — large soft gray glow over the glass strips */
+        .top-glow {
+            position: fixed;
+            left: 42.8%;
+            top: 7.5%;
+            width: 143%;
+            height: 106%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            background: rgba(214, 214, 214, 0.88);
+            filter: blur(120px);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* Frame 42 — refracted glass strips */
+        .glass-strips {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            gap: 0;
+            opacity: 0.44;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .glass-strip {
+            width: 3.75rem;
+            flex: 0 0 auto;
+            background:
+                linear-gradient(90deg, rgba(217, 217, 217, 0.4) 0%, rgba(120, 120, 120, 0.18) 50%, rgba(53, 52, 52, 0.4) 100%),
+                linear-gradient(180deg, rgba(217, 217, 217, 0.8) 0%, rgba(217, 217, 217, 0.4) 71%, rgba(217, 217, 217, 0.1) 100%);
+            background-blend-mode: multiply, normal;
+            box-shadow: inset 1px 0 rgba(255, 255, 255, 0.6), inset -1px 0 rgba(0, 0, 0, 0.05);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+        }
+
+        .home-content {
+            position: relative;
+            z-index: 4;
+            flex: 0 0 auto;
+            width: min(1309px, calc(100% - 3rem));
+            margin: 0 auto;
+            padding: 23px 0 0;
+        }
+
+        /* ─── auth card ─── */
+        .auth-shell {
+            position: relative;
+            z-index: 4;
+            flex: 1 1 auto;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            width: 100%;
+            padding: 40px 24px 72px;
+        }
+
+        .auth-card {
+            position: relative;
+            width: 100%;
+            max-width: 460px;
+            padding: 2.5rem 2.25rem;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.72);
+            -webkit-backdrop-filter: blur(22px);
+            backdrop-filter: blur(22px);
+            box-shadow: 0 24px 60px rgba(0, 68, 103, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        }
+
+        .auth-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            margin-bottom: 1.25rem;
+            border-radius: 100px;
+            background: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            font-weight: 500;
+            color: #000;
+        }
+
+        .auth-title {
+            margin: 0 0 0.4rem;
+            font-size: 2.25rem;
+            line-height: 1.04;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            color: #0b4865;
+            background: linear-gradient(180deg, #0e5278 0%, #063248 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .auth-title-accent {
+            font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+            font-style: italic;
+            font-weight: 500;
+            font-size: 1.12em;
+            color: #0a8fd1;
+            background: linear-gradient(180deg, #0a8fd1 0%, #075286 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .auth-sub {
+            margin: 0 0 1.75rem;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: rgba(0, 0, 0, 0.65);
+        }
+
+        .auth-foot {
+            margin-top: 1.25rem;
+            font-size: 0.8125rem;
+            color: rgba(0, 0, 0, 0.6);
+            text-align: center;
+        }
+
+        .auth-foot a {
+            color: var(--portal-blue);
+            font-weight: 600;
+        }
+
+        /* pill-rounded fields & buttons — match the landing buttons (radius 50) */
+        .auth-card .modern-form-input,
+        .auth-card .modern-button {
+            border-radius: 50px;
+        }
+
+        .auth-card .modern-form-input {
+            padding: 0.72rem 1.15rem;
+        }
+
+        .auth-card .modern-button {
+            padding: 0.72rem 1.25rem;
+        }
+
+        @media (max-width: 640px) {
+            .glass-strip {
+                width: 2.5rem;
+            }
+
+            .top-glow {
+                filter: blur(80px);
+            }
+
+            .home-content {
+                width: min(100% - 1.5rem, 560px);
+                padding-top: 14px;
+            }
+
+            .auth-shell {
+                padding: 20px 16px 48px;
+            }
+
+            .auth-card {
+                padding: 2rem 1.4rem;
+                border-radius: 20px;
+            }
+
+            .auth-badge {
+                font-size: 12.5px;
+            }
+
+            .auth-title {
+                font-size: 1.9rem;
+            }
+
+            .auth-sub {
+                font-size: 0.9rem;
+                margin-bottom: 1.5rem;
+            }
+
+            /* 16px inputs stop iOS from auto-zooming on focus */
+            .auth-card .modern-form-input {
+                font-size: 16px;
+                padding: 0.72rem 1.1rem;
+            }
+
+            .auth-card .modern-button {
+                font-size: 0.95rem;
+                padding: 0.8rem 1.25rem;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .auth-card {
+                padding: 1.75rem 1.15rem;
+            }
+
+            .auth-badge {
+                font-size: 12px;
+                padding: 7px 12px;
+            }
+
+            .auth-title {
+                font-size: 1.7rem;
+            }
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full modern-card p-8">
-        <div class="text-center mb-8">
-            <div class="flex justify-center">
-                <img src="<?php echo $baseUrl; ?>/assets/images/logo.webp" alt="GPD Reports Logo" class="h-16 w-16">
-            </div>
-            <h1 class="mt-4 text-2xl font-bold text-gray-800">GPD Reporting Portal</h1>
-            <h2 class="mt-2 text-3xl font-extrabold text-gray-900 mb-4">Create your account</h2>
-            <a href="login.php" class="modern-button modern-button-secondary w-full flex items-center justify-center">
-                <i class="fas fa-sign-in-alt mr-2"></i> Sign in to your account
-            </a>
+<body>
+    <main class="portal-home">
+        <div class="glass-strips" aria-hidden="true">
+            <?php for ($i = 0; $i < 48; $i++): ?>
+                <span class="glass-strip"></span>
+            <?php endfor; ?>
         </div>
+
+        <div class="top-glow" aria-hidden="true"></div>
+
+        <div class="home-content">
+            <?php include __DIR__ . '/layouts/landing-header.php'; ?>
+        </div>
+
+        <section class="auth-shell">
+            <div class="auth-card">
+                <span class="auth-badge">Create your zonal reporting account</span>
+                <h1 class="auth-title">Get <span class="auth-title-accent">started</span></h1>
+                <p class="auth-sub">Fill in the details below to register.</p>
 
         <?php if ($error): ?>
             <script>
@@ -202,7 +443,7 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
             </script>
         <?php endif; ?>
 
-        <form class="space-y-6 needs-validation" method="POST" novalidate>
+        <form class="space-y-4" method="POST" novalidate>
             <div class="modern-form-group">
                 <label for="username" class="modern-form-label">Username</label>
                 <input id="username" name="username" type="text" required 
@@ -226,8 +467,8 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
 
             <div class="modern-form-group">
                 <label for="role" class="modern-form-label">Role</label>
-                <select id="role" name="role" class="modern-form-input select2" required>
-                    <option value="user">User</option>
+                <select id="role" name="role" class="modern-form-input" required>
+                    <option value="user">RZM</option>
                     <option value="admin-manager">Admin Manager</option>
                 </select>
             </div>
@@ -235,7 +476,7 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
             <div class="modern-form-group">
                 <label for="region" class="modern-form-label">Region</label>
                 <select id="region" name="region" required
-                        class="modern-form-input select2">
+                        class="modern-form-input">
                     <option value="">Select Region</option>
                 </select>
             </div>
@@ -243,14 +484,17 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
             <div class="modern-form-group" id="zoneGroup">
                 <label for="zone" class="modern-form-label">Zone</label>
                 <select id="zone" name="zone" required
-                        class="modern-form-input select2">
+                        class="modern-form-input">
                     <option value="">Select Zone</option>
                 </select>
             </div>
 
-            <button type="submit" class="modern-button modern-button-primary w-full">
+            <button type="submit" class="modern-button modern-button-primary w-full" style="justify-content:center;" data-loading-text="Creating Account…">
                 Create Account
             </button>
+            <p class="auth-foot">
+                Already have an account? <a href="<?php echo $baseUrl; ?>/login.php">Sign in</a>
+            </p>
             
             <!-- KingsChat register option commented out
             <div class="relative flex items-center justify-center mt-6 mb-6">
@@ -267,29 +511,18 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
             </div>
             -->
         </form>
-    </div>
+            </div>
+        </section>
+    </main>
 
 <script>
-// Load the regions and zones data from the JSON file
-fetch('<?php echo $baseUrl; ?>/config/zones.json')
-    .then(response => response.json())
-    .then(data => {
-        window.regionsZones = data;
-        console.log('Loaded Regions:', Object.keys(data));
-        initializeForm();
-    })
-    .catch(error => {
-        console.error('Error loading zones:', error);
-    });
+// Loaded server-side from the canonical hierarchy API with cache/fallback handling.
+window.regionsZones = <?php echo json_encode($REGIONS_ZONES, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
 function updateZones() {
     const regionSelect = document.getElementById('region');
     const zoneSelect = document.getElementById('zone');
     const selectedRegion = regionSelect.value;
-    
-    // Debug log
-    console.log('Selected Region:', selectedRegion);
-    console.log('Available Zones for Region:', window.regionsZones?.[selectedRegion]);
     
     // Clear current options
     $(zoneSelect).empty().append('<option value="">Select Zone</option>');
@@ -301,16 +534,11 @@ function updateZones() {
             a.localeCompare(b, undefined, {sensitivity: 'base'})
         );
         
-        // Debug log
-        console.log('Sorted Zones:', sortedZones);
-        
         sortedZones.forEach(zone => {
             const option = new Option(zone, zone);
             $(zoneSelect).append(option);
         });
         
-        // Trigger change event to refresh Select2
-        $(zoneSelect).trigger('change');
     }
 }
 
@@ -323,7 +551,7 @@ function toggleZoneRequirement() {
     zoneGroup.style.display = requiresZone ? 'block' : 'none';
     zoneSelect.required = requiresZone;
     if (!requiresZone) {
-        $(zoneSelect).val('').trigger('change');
+        zoneSelect.value = '';
     }
 }
 
@@ -334,9 +562,6 @@ function initializeForm() {
     
     // Sort regions case-insensitive
     regions.sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
-    
-    // Debug log
-    console.log('Sorted Regions:', regions);
     
     // Reset with first option
     $(regionSelect).empty().append('<option value="">Select Region</option>');
@@ -351,19 +576,9 @@ function initializeForm() {
     updateZones();
     toggleZoneRequirement();
     
-    // Initialize Select2 after populating the dropdowns
-    setTimeout(function() {
-        $('#role, #region, #zone').select2({
-            theme: 'default',
-            width: '100%',
-            placeholder: 'Select an option',
-            allowClear: true,
-            minimumResultsForSearch: 6
-        });
-    }, 100);
 }
 
-// Add event listener for region changes with Select2
+// Add event listener for region changes
 $(document).ready(function() {
     $('#region').on('change', function() {
         updateZones();

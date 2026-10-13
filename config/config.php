@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/env.php';
 loadEnvFile(__DIR__ . '/../.env');
+require_once __DIR__ . '/../includes/hierarchy.php';
 
 // Set default timezone to prevent date/time issues
 date_default_timezone_set(getenv('APP_TIMEZONE') ?: 'UTC');
@@ -69,7 +70,19 @@ if (php_sapi_name() === 'cli') {
 } else {
     $configuredBaseUrl = trim((string)(getenv('APP_BASE_URL') ?: ''));
     if ($configuredBaseUrl !== '') {
-        define('BASE_URL', rtrim($configuredBaseUrl, '/'));
+        if ($configuredBaseUrl === '/') {
+            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            define('BASE_URL', $protocol . '://' . $host);
+        } elseif (preg_match('#^https?://#i', $configuredBaseUrl)) {
+            define('BASE_URL', rtrim($configuredBaseUrl, '/'));
+        } elseif (strpos($configuredBaseUrl, '/') === 0) {
+            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            define('BASE_URL', $protocol . '://' . $host . rtrim($configuredBaseUrl, '/'));
+        } else {
+            define('BASE_URL', rtrim($configuredBaseUrl, '/'));
+        }
     } else {
     if (ENVIRONMENT === 'production') {
         define('BASE_URL', 'https://gpdreportingportal.org');  // Production URL
@@ -138,18 +151,7 @@ define('ITEMS_PER_PAGE', 10);
 
 // Function to load regions and zones
 function getRegionsZones() {
-    $jsonFile = __DIR__ . '/zones.json';
-    if (file_exists($jsonFile)) {
-        $zonesJson = file_get_contents($jsonFile);
-        $zones = json_decode($zonesJson, true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $zones;
-        }
-        error_log("Error parsing zones.json: " . json_last_error_msg());
-    } else {
-        error_log("zones.json file not found");
-    }
-    return [];
+    return loadRegionsZonesHierarchy();
 }
 
 // Load regions and zones
@@ -167,7 +169,7 @@ define('STATUS_APPROVED', 'approved');
 define('STATUS_REJECTED', 'rejected');
 
 // File upload settings
-define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
+define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10MB
 define('ALLOWED_FILE_TYPES', ['jpg', 'jpeg', 'png', 'pdf']);
 
 // Upload directories

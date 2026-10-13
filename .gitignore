@@ -24,3 +24,16 @@ debug_report_submission.php
 test_base_url.php
 test_db_connection.php
 kingschat/
+
+# Never commit: secrets, dumps, local tool state
+.env.*
+!.env.example
+*.log
+*.sql.gz
+database/backups/
+.kombai/
+.refact/
+data/
+node_modules/
+# ponytail: distribution/ is a separate app (unauthenticated install_db.php); kept out until reviewed
+distribution/

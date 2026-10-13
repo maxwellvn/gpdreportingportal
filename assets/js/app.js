@@ -1,28 +1,296 @@
 /**
  * GPD Reporting Portal - Main JavaScript
- * 
- * This file contains the initialization and configuration for:
- * - Toastify (toast notifications)
- * - SweetAlert2 (modals and alerts)
- * - Select2 (enhanced select boxes)
- * - Other utility functions
+ *
+ * Includes:
+ * - AppState: global state manager
+ * - LoadingBar: slim page-transition progress bar
+ * - Form submit loading states
+ * - Fetch wrapper with loading
+ * - Table action / link loading
+ * - Toast, SweetAlert2 helpers
  */
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Select2 on all select elements with the 'select2' class
-    if (typeof $ !== 'undefined' && typeof $.fn !== 'undefined' && typeof $.fn.select2 !== 'undefined') {
-        $('.select2').select2({
-            theme: 'classic',
-            width: '100%',
-            placeholder: 'Select an option',
-            allowClear: true
-        });
+/* ═══════════════════════════════════════════════
+   1. GLOBAL STATE MANAGER
+   ═══════════════════════════════════════════════ */
+window.AppState = (function() {
+    var _state = {
+        pageLoading:   false,
+        formSubmitting: false,
+        fetchPending:  0,
+        deletePending: false,
+    };
+    var _listeners = {};
+
+    function set(key, value) {
+        var prev = _state[key];
+        _state[key] = value;
+        if (prev !== value && _listeners[key]) {
+            _listeners[key].forEach(function(fn) { try { fn(value, prev); } catch(e) {} });
+        }
     }
+    function get(key) { return _state[key]; }
+    function on(key, fn)  {
+        if (!_listeners[key]) _listeners[key] = [];
+        _listeners[key].push(fn);
+    }
+    return { set: set, get: get, on: on };
+})();
+
+/* ═══════════════════════════════════════════════
+   2. LOADING BAR (slim top progress bar)
+   ═══════════════════════════════════════════════ */
+window.LoadingBar = (function() {
+    var bar = null;
+    var trickleTimer = null;
+    var currentPct = 0;
+
+    function _ensure() {
+        if (bar) return;
+        bar = document.createElement('div');
+        bar.id = 'app-loading-bar';
+        bar.style.cssText = [
+            'position:fixed', 'top:0', 'left:0', 'z-index:99999',
+            'height:2px', 'width:0%',
+            'background:var(--primary-500, #0ea5e9)',
+            'transition:width 0.2s ease, opacity 0.4s ease',
+            'pointer-events:none',
+            'box-shadow:0 0 6px var(--primary-400, #38bdf8)'
+        ].join(';');
+        document.documentElement.appendChild(bar);
+    }
+
+    function start() {
+        _ensure();
+        currentPct = 0;
+        bar.style.opacity = '1';
+        bar.style.width = '0%';
+        AppState.set('pageLoading', true);
+        clearInterval(trickleTimer);
+        // Trickle to 85% while waiting
+        trickleTimer = setInterval(function() {
+            if (currentPct < 85) {
+                currentPct += (85 - currentPct) * 0.12;
+                bar.style.width = currentPct + '%';
+            }
+        }, 200);
+    }
+
+    function done() {
+        _ensure();
+        clearInterval(trickleTimer);
+        currentPct = 100;
+        bar.style.width = '100%';
+        AppState.set('pageLoading', false);
+        setTimeout(function() {
+            bar.style.opacity = '0';
+            setTimeout(function() { bar.style.width = '0%'; }, 400);
+        }, 250);
+    }
+
+    function inc(amount) {
+        _ensure();
+        currentPct = Math.min(currentPct + (amount || 10), 94);
+        bar.style.width = currentPct + '%';
+    }
+
+    return { start: start, done: done, inc: inc };
+})();
+
+/* ═══════════════════════════════════════════════
+   3. BUTTON / LINK LOADING HELPERS
+   ═══════════════════════════════════════════════ */
+
+/**
+ * Put a button into a loading state.
+ * Returns a restore function to call when done.
+ */
+function setButtonLoading(btn, loadingText) {
+    if (!btn || btn.disabled) return function() {};
+    var original = btn.innerHTML;
+    var originalDisabled = btn.disabled;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:0.35rem;font-size:0.85em;"></i>' + (loadingText || 'Loading…');
+    btn.style.opacity = '0.8';
+    btn.style.cursor = 'wait';
+    return function restore() {
+        btn.innerHTML = original;
+        btn.disabled = originalDisabled;
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+    };
+}
+
+/**
+ * Put any element into skeleton/loading state.
+ * Returns a restore function.
+ */
+function setElementLoading(el, minHeight) {
+    if (!el) return function() {};
+    var original = el.innerHTML;
+    var h = minHeight || el.offsetHeight || 40;
+    el.innerHTML = '<div class="app-skeleton" style="min-height:' + h + 'px;"></div>';
+    return function restore() { el.innerHTML = original; };
+}
+
+/* ═══════════════════════════════════════════════
+   4. FORM SUBMIT LOADING STATE
+   ═══════════════════════════════════════════════ */
+function setupFormSubmitLoading() {
+    document.addEventListener('submit', function(e) {
+        var form = e.target;
+        if (!form || form.tagName !== 'FORM') return;
+        // Skip forms that opt out
+        if (form.dataset.noLoading) return;
+        // Skip invalid forms — let browser/validation handle
+        if (form.classList.contains('needs-validation') && !form.checkValidity()) return;
+
+        var submitBtn = form.querySelector('[type="submit"]:not([data-no-loading])');
+        if (!submitBtn) return;
+
+        var loadingText = submitBtn.dataset.loadingText ||
+            form.dataset.loadingText || 'Saving…';
+
+        AppState.set('formSubmitting', true);
+        LoadingBar.start();
+        setButtonLoading(submitBtn, loadingText);
+        // Don't restore — page will navigate away
+    }, true);
+}
+
+function submitFormWithLoading(formId, loadingText) {
+    loadingText = loadingText || 'Processing…';
+    var form = document.getElementById(formId);
+    if (!form) return false;
+
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return false;
+    }
+
+    var submitBtn = form.querySelector('button[type="submit"]');
+    AppState.set('formSubmitting', true);
+    LoadingBar.start();
+    if (submitBtn) {
+        setButtonLoading(submitBtn, loadingText);
+        setTimeout(function() { form.submit(); }, 80);
+    } else {
+        form.submit();
+    }
+    return true;
+}
+
+/* ═══════════════════════════════════════════════
+   5. PAGE TRANSITION LOADING (nav links)
+   ═══════════════════════════════════════════════ */
+function setupPageTransitionLoading() {
+    document.addEventListener('click', function(e) {
+        var link = e.target.closest('a[href]');
+        if (!link) return;
+        var href = link.getAttribute('href');
+        // Skip: empty, hash, JS, external, new tab, data-no-loading, download
+        if (!href || href === '#' || href.startsWith('javascript') ||
+            href.startsWith('mailto') || href.startsWith('tel') ||
+            link.target === '_blank' || link.dataset.noLoading !== undefined ||
+            link.hasAttribute('download')) return;
+        // Skip external domains
+        try {
+            var url = new URL(href, window.location.href);
+            if (url.hostname !== window.location.hostname) return;
+        } catch(err) { return; }
+
+        LoadingBar.start();
+
+        // Add visual spinner to the clicked link if it's an action
+        if (link.classList.contains('modern-button') || link.classList.contains('modern-table-action') ||
+            link.classList.contains('db-ql') || link.dataset.linkLoading !== undefined) {
+            var icon = link.querySelector('i.fas:first-child');
+            if (icon) {
+                var origClass = icon.className;
+                icon.className = 'fas fa-spinner fa-spin';
+                window.addEventListener('pageshow', function() { icon.className = origClass; });
+            }
+        }
+    });
+
+    // Show bar done on pageshow (back-forward cache)
+    window.addEventListener('pageshow', function() {
+        LoadingBar.done();
+        AppState.set('pageLoading', false);
+        AppState.set('formSubmitting', false);
+    });
+}
+
+/* ═══════════════════════════════════════════════
+   6. FETCH WRAPPER WITH LOADING STATE
+   ═══════════════════════════════════════════════ */
+window.appFetch = function(url, options, uiOptions) {
+    options = options || {};
+    uiOptions = uiOptions || {};
+    var triggerBtn = uiOptions.button || null;
+    var loadingText = uiOptions.loadingText || 'Loading…';
+    var restore = triggerBtn ? setButtonLoading(triggerBtn, loadingText) : function() {};
+
+    AppState.set('fetchPending', AppState.get('fetchPending') + 1);
+    if (AppState.get('fetchPending') === 1) LoadingBar.start();
+
+    return fetch(url, options)
+        .then(function(r) {
+            AppState.set('fetchPending', Math.max(0, AppState.get('fetchPending') - 1));
+            if (AppState.get('fetchPending') === 0) LoadingBar.done();
+            restore();
+            return r;
+        })
+        .catch(function(err) {
+            AppState.set('fetchPending', Math.max(0, AppState.get('fetchPending') - 1));
+            if (AppState.get('fetchPending') === 0) LoadingBar.done();
+            restore();
+            throw err;
+        });
+};
+
+/* ═══════════════════════════════════════════════
+   7. SKELETON SCREEN STYLES (injected once)
+   ═══════════════════════════════════════════════ */
+(function injectSkeletonStyles() {
+    if (document.getElementById('app-skeleton-styles')) return;
+    var style = document.createElement('style');
+    style.id = 'app-skeleton-styles';
+    style.textContent = [
+        '@keyframes app-shimmer {',
+        '  0%   { background-position: -400px 0; }',
+        '  100% { background-position:  400px 0; }',
+        '}',
+        '.app-skeleton {',
+        '  border-radius: 4px;',
+        '  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);',
+        '  background-size: 800px 100%;',
+        '  animation: app-shimmer 1.4s infinite linear;',
+        '  width: 100%;',
+        '}',
+        '.app-skeleton-row { display:flex; gap:0.75rem; align-items:center; padding:0.65rem 0; }',
+        '.app-skeleton-cell { border-radius:4px; height:0.9rem;',
+        '  background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);',
+        '  background-size:800px 100%; animation:app-shimmer 1.4s infinite linear; }',
+    ].join('\n');
+    document.head.appendChild(style);
+})();
+
+/* ═══════════════════════════════════════════════
+   8. DOM READY BOOTSTRAP
+   ═══════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', function() {
+    // Finish the preloader loading bar
+    LoadingBar.done();
+
+    // Boot all state-managed features
+    setupFormSubmitLoading();
+    setupPageTransitionLoading();
 
     // Initialize any flatpickr date pickers
     initializeDatePickers();
 
-    // Add event listeners for form submissions
+    // Add event listeners for form submissions (validation)
     setupFormValidation();
 
     // Check for KingsChat link success message
@@ -47,7 +315,13 @@ window.kcOpenPopup = function(options) {
     var returnTo = options.returnTo || window.location.href;
     var clientId = 'com.kingschat';
     var scopes = ['conference_calls'];
-    var callbackUrl = (window.BASE_URL || '') + '/kc_callback.php' + (returnTo ? ('?return_to=' + encodeURIComponent(returnTo)) : '');
+    var baseUrl = window.BASE_URL || '';
+    if (!baseUrl) {
+        var currentPath = window.location.pathname || '/';
+        var basePath = currentPath.replace(/\/[^/]*$/, '');
+        baseUrl = window.location.origin + (basePath === '/' ? '' : basePath);
+    }
+    var callbackUrl = baseUrl + '/kc_callback.php' + (returnTo ? ('?return_to=' + encodeURIComponent(returnTo)) : '');
     if (mode === 'link') {
         callbackUrl += (callbackUrl.indexOf('?') >= 0 ? '&' : '?') + 'mode=link';
     }
@@ -56,7 +330,8 @@ window.kcOpenPopup = function(options) {
         scopes: JSON.stringify(scopes),
         redirect_uri: callbackUrl,
         response_type: 'token',
-        post_redirect: true
+        post_redirect: true,
+        state: mode
     };
     var queryString = Object.keys(params)
         .map(function(key){ return encodeURIComponent(key) + '=' + encodeURIComponent(params[key]); })
@@ -76,7 +351,15 @@ window.addEventListener('message', function(e) {
         var kcUserId = e.data.kcUserId || '';
         var mode = e.data.mode || 'login';
         var error = e.data.error || '';
-        var returnTo = e.data.returnTo || (window.BASE_URL + '/dashboard.php');
+        var returnTo = e.data.returnTo || '';
+        if (!returnTo) {
+            try {
+                returnTo = sessionStorage.getItem('kc_login_return_to') || '';
+            } catch (e) {}
+        }
+        if (!returnTo) {
+            returnTo = (window.BASE_URL + '/dashboard.php');
+        }
         console.log('[KC_AUTH] Received message:', { kcUserId: kcUserId, mode: mode, error: error, returnTo: returnTo });
 
         // Handle errors from the callback
@@ -113,7 +396,7 @@ window.addEventListener('message', function(e) {
                 showToast('KingsChat account linked successfully', 'success');
             }
             // Ping session to update last_activity, then reload
-            fetch((window.BASE_URL || '') + '/session_ping.php', {
+            appFetch((window.BASE_URL || '') + '/session_ping.php', {
                 method: 'GET',
                 credentials: 'same-origin'
             }).finally(function() {
@@ -125,17 +408,25 @@ window.addEventListener('message', function(e) {
             return;
         }
 
+        // Popup already authenticated the portal session for a mapped KingsChat user.
+        if (mode === 'login') {
+            console.log('[KC_AUTH] Login completed in popup, redirecting to app...');
+            try { sessionStorage.removeItem('kc_login_return_to'); } catch (e) {}
+            window.location.href = returnTo;
+            return;
+        }
+
         // If user is logged in or explicitly linking, link account via API
         // This is a fallback for when the popup couldn't link directly
         if (mode === 'link' || (typeof window.IS_LOGGED_IN !== 'undefined' && window.IS_LOGGED_IN === true)) {
             console.log('[KC_AUTH] Attempting to link account via API...');
             var body = 'kc_user_id=' + encodeURIComponent(kcUserId);
-            fetch((window.BASE_URL || '') + '/kc_link_account.php', {
+            appFetch((window.BASE_URL || '') + '/kc_link_account.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 credentials: 'same-origin',
                 body: body
-            }).then(function(r){
+            }, { loadingText: 'Linking…' }).then(function(r){
                 console.log('[KC_AUTH] Link response status:', r.status);
                 return r.json();
             }).then(function(resp){
@@ -308,21 +599,35 @@ function setupFormValidation() {
 }
 
 /**
- * Delete confirmation helper
- * 
+ * Delete confirmation helper — shows loading bar after confirm
+ *
  * @param {string} url - The URL to redirect to after confirmation
  * @param {string} itemName - The name of the item being deleted
  */
-function confirmDelete(url, itemName = 'item') {
-    showConfirmDialog(
-        'Confirm Deletion',
-        `Are you sure you want to delete this ${itemName}? This action cannot be undone.`,
-        'warning',
-        'Yes, delete it',
-        function() {
-            window.location.href = url;
-        }
-    );
+function confirmDelete(url, itemName) {
+    itemName = itemName || 'item';
+    Swal.fire({
+        title: 'Confirm Deletion',
+        text: 'Are you sure you want to delete this ' + itemName + '? This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: 'var(--danger-600, #dc2626)',
+        cancelButtonColor: 'var(--neutral-400, #9ca3af)',
+        confirmButtonText: '<i class="fas fa-trash" style="margin-right:0.35rem;"></i>Yes, delete it',
+        cancelButtonText: 'Cancel',
+        showLoaderOnConfirm: true,
+        preConfirm: function() {
+            AppState.set('deletePending', true);
+            LoadingBar.start();
+            return new Promise(function(resolve) {
+                setTimeout(function() {
+                    window.location.href = url;
+                    resolve();
+                }, 80);
+            });
+        },
+        allowOutsideClick: function() { return !Swal.isLoading(); }
+    });
     return false;
 }
 

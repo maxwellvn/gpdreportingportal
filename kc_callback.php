@@ -80,7 +80,10 @@ if (!$token) {
 if (!$isLinkMode && isset($_SESSION)) {
     $_SESSION['kc_access_token'] = $token;
     // Try to capture refresh token too
-    $refreshToken = $_POST['refreshToken'] ?? ($_GET['refresh_token'] ?? ($_GET['refreshToken'] ?? null));
+    $refreshToken = $_POST['refreshToken']
+        ?? ($_POST['refresh_token']
+        ?? ($_GET['refresh_token']
+        ?? ($_GET['refreshToken'] ?? null)));
     if ($refreshToken) { $_SESSION['kc_refresh_token'] = $refreshToken; }
 }
 
@@ -206,12 +209,12 @@ if ($kcUserId !== '') {
             @error_log('[KC_CALLBACK] Original user was logged in (' . $originalUserId . '), skipping session regeneration to prevent parent logout');
             // Don't regenerate session if user was originally logged in
         } else {
-            // Check if this looks like a linking operation (token in return_to)
+            // Check if this looks like a linking operation (link token in return_to)
             $returnTo = isset($_GET['return_to']) ? $_GET['return_to'] : '';
-            $hasToken = strpos($returnTo, 'lt=') !== false;
-            @error_log('[KC_CALLBACK] Linking check: return_to=' . $returnTo . ', hasToken=' . ($hasToken ? 'yes' : 'no') . ', originalUserId=null');
+            $hasLinkToken = strpos($returnTo, 'lt=') !== false;
+            @error_log('[KC_CALLBACK] Linking check: return_to=' . $returnTo . ', hasLinkToken=' . ($hasLinkToken ? 'yes' : 'no') . ', originalUserId=null');
 
-            if ($hasToken) {
+            if ($hasLinkToken) {
                 @error_log('[KC_CALLBACK] Detected linking operation via token, skipping session regeneration');
                 // Don't regenerate session for linking operations
             } else {

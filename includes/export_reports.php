@@ -113,6 +113,8 @@ fputcsv($output, [
     // Total Copies Report
     'Total Copies Sponsored',
     'Total Copies Distributed',
+    'Distribution - Digital',
+    'Distribution - Physical',
     'Distribution Rate (%)',
 
     // Strategic Income Alerts
@@ -145,6 +147,8 @@ fputcsv($output, [
     'Languages Sponsored',
     'Distribution Centers',
     'External Ministers',
+    'Crusades',
+    'Testimonies Received',
 
     // Say Yes to Kids Impact
     'SYK Outreaches',
@@ -179,6 +183,8 @@ foreach ($reports as $report) {
         // Total Copies Report
         $report['total_copies'],
         $report['total_distribution'],
+        $report['distribution_digital'] ?? 0,
+        $report['distribution_physical'] ?? 0,
         $distributionRate,
 
         // Strategic Income Alerts
@@ -211,6 +217,8 @@ foreach ($reports as $report) {
         $report['languages_sponsored'],
         $report['distribution_centers'],
         $report['external_ministers'],
+        $report['crusades'] ?? 0,
+        $report['testimonies_received'] ?? 0,
 
         // Say Yes to Kids Impact
         $report['syk_outreaches'],

@@ -103,81 +103,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require_once '../layouts/header.php';
 ?>
 
-<!-- Main Content -->
-<div class="modern-container">
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-2xl font-bold text-gray-900 mb-6">System Settings</h1>
-        
-        <?php if (isset($_SESSION['error'])): ?>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    showToast('<?php echo addslashes($_SESSION['error']); ?>', 'error', 5000);
-                });
-            </script>
-            <?php unset($_SESSION['error']); ?>
-        <?php endif; ?>
+<style>
+.st-page { max-width: 800px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+.st-title { font-size:1.125rem; font-weight:700; color:var(--neutral-900); margin:0 0 1.5rem; }
+.st-section { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; margin-bottom:1.25rem; overflow:hidden; }
+.st-section-head { padding:0.85rem 1.25rem; border-bottom:1px solid var(--neutral-200); }
+.st-section-head h2 { font-size:0.875rem; font-weight:600; color:var(--neutral-900); margin:0; text-transform:uppercase; letter-spacing:0.04em; }
+.st-section-body { padding:1.25rem; }
+.st-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+.st-table th { padding:0.65rem 1rem; text-align:left; font-size:0.7rem; font-weight:600; color:var(--neutral-500); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid var(--neutral-200); }
+.st-table td { padding:0.75rem 1rem; border-bottom:1px solid var(--neutral-100); color:var(--neutral-800); font-family:monospace; font-size:0.8rem; }
+.st-table tr:last-child td { border-bottom:none; }
+</style>
 
-        <?php if (isset($_SESSION['success'])): ?>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    showAlert('Success', '<?php echo addslashes($_SESSION['success']); ?>', 'success');
-                });
-            </script>
-            <?php unset($_SESSION['success']); ?>
-        <?php endif; ?>
-        
-        <div class="modern-card">
-            <div class="modern-card-header">
-                <h2 class="modern-card-title">Application Settings</h2>
-            </div>
-            <div class="modern-card-body">
-                <p class="text-gray-600">No settings configured. Settings can be added here as needed.</p>
-            </div>
+<div class="st-page">
+    <h1 class="st-title">System Settings</h1>
+
+    <?php if (isset($_SESSION['error'])): ?>
+        <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?php echo addslashes($_SESSION['error']); ?>', 'error', 5000); });</script>
+        <?php unset($_SESSION['error']); ?>
+    <?php endif; ?>
+    <?php if (isset($_SESSION['success'])): ?>
+        <script>document.addEventListener('DOMContentLoaded', function() { showAlert('Success', '<?php echo addslashes($_SESSION['success']); ?>', 'success'); });</script>
+        <?php unset($_SESSION['success']); ?>
+    <?php endif; ?>
+
+    <div class="st-section">
+        <div class="st-section-head"><h2>Application Settings</h2></div>
+        <div class="st-section-body">
+            <p style="font-size:0.875rem;color:var(--neutral-500);margin:0;">No settings configured. Settings can be added here as needed.</p>
         </div>
-        
-        <!-- Debug Information (Only visible to admins) -->
-        <div class="modern-card mt-6">
-            <div class="modern-card-header">
-                <h2 class="modern-card-title">Debug Information</h2>
-            </div>
-            <div class="modern-card-body">
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900 mb-2">Current Settings</h3>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Key</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <?php
-                                $stmt = $conn->query("SELECT * FROM system_settings ORDER BY setting_key");
-                                $settings = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                                
-                                foreach ($settings as $setting):
-                                ?>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo htmlspecialchars($setting['setting_key']); ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($setting['setting_value']); ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($setting['updated_at']); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <div class="mt-4">
-                    <form method="POST" action="reset_settings.php" onsubmit="return confirm('Are you sure you want to reset all settings to default values?');">
-                        <button type="submit" class="modern-button modern-button-danger">
-                            <i class="fas fa-undo modern-button-icon"></i> Reset to Default Values
-                        </button>
-                    </form>
-                </div>
-            </div>
+    </div>
+
+    <div class="st-section">
+        <div class="st-section-head"><h2>Current Settings (Debug)</h2></div>
+        <div style="overflow-x:auto;">
+            <table class="st-table">
+                <thead><tr><th>Key</th><th>Value</th><th>Last Updated</th></tr></thead>
+                <tbody>
+                    <?php
+                    $stmt = $conn->query("SELECT * FROM system_settings ORDER BY setting_key");
+                    $settings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    foreach ($settings as $setting): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($setting['setting_key']); ?></td>
+                        <td><?php echo htmlspecialchars($setting['setting_value']); ?></td>
+                        <td><?php echo htmlspecialchars($setting['updated_at']); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php if (empty($settings)): ?>
+                    <tr><td colspan="3" style="color:var(--neutral-400);font-family:inherit;">No settings records found.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <div style="padding:1rem 1.25rem;border-top:1px solid var(--neutral-200);">
+            <form method="POST" action="reset_settings.php" onsubmit="return confirm('Are you sure you want to reset all settings to default values?');">
+                <button type="submit" class="modern-button modern-button-danger" style="font-size:0.8125rem;"><i class="fas fa-undo modern-button-icon"></i> Reset to Default Values</button>
+            </form>
         </div>
     </div>
 </div>

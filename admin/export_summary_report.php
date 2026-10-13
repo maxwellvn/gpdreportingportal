@@ -51,7 +51,7 @@ $monthlyTrends = $stats->getMonthlyTrends(12, $filters);
 $topZones = $stats->getTopZones(10, $filters);
 
 // Get total zones count from zones configuration
-$zonesData = json_decode(file_get_contents('../config/zones.json'), true);
+$zonesData = $REGIONS_ZONES;
 $totalZones = 0;
 foreach ($zonesData as $region => $zones) {
     $totalZones += count($zones);

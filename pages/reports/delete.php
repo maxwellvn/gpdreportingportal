@@ -2,6 +2,7 @@
 require_once '../../config/config.php';
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/audit.php';
 
 // Ensure user is logged in and is admin
 Auth::requireLogin();
@@ -84,7 +85,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['report_id'])) {
         
         // Commit transaction
         $conn->commit();
-        
+
+        Audit::log('delete_report', 'report', (int)$_POST['report_id'], 'Deleted report #' . (int)$_POST['report_id']);
         $_SESSION['success'] = "Report deleted successfully.";
     } catch (Exception $e) {
         $conn->rollBack();

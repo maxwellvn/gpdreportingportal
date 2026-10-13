@@ -107,9 +107,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require_once 'layouts/header.php';
 ?>
 
-<div class="modern-container">
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
+<style>
+.pf-page { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+.pf-title { font-size: 1.125rem; font-weight: 700; color: var(--neutral-900); margin: 0 0 1.5rem; }
+.pf-grid { display: grid; grid-template-columns: 1fr 280px; gap: 1.25rem; }
+@media(max-width:768px){ .pf-grid { grid-template-columns: 1fr; } }
+.pf-card { border: 1px solid var(--neutral-200); border-radius: var(--radius-lg); background: #fff; overflow: hidden; margin-bottom: 1.25rem; }
+.pf-card:last-child { margin-bottom: 0; }
+.pf-card-head { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; justify-content: space-between; }
+.pf-card-head h2 { font-size: 0.875rem; font-weight: 600; color: var(--neutral-900); margin: 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.pf-card-body { padding: 1.25rem; }
+.pf-info-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--neutral-100); font-size: 0.85rem; }
+.pf-info-row:last-child { border-bottom: none; }
+.pf-info-label { color: var(--neutral-500); }
+.pf-info-value { font-weight: 500; color: var(--neutral-900); }
+.pf-avatar { width: 2.5rem; height: 2.5rem; border-radius: 50%; background: var(--primary-100); color: var(--primary-600); display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 600; }
+.pf-admin-divider { border-top: 1px solid var(--neutral-200); margin: 1.25rem 0 1rem; padding-top: 1rem; }
+.pf-admin-divider h3 { font-size: 0.75rem; font-weight: 600; color: var(--neutral-500); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 1rem; }
+.pf-kc-row { display: flex; align-items: flex-start; gap: 0.875rem; }
+.pf-kc-icon { width: 2.25rem; height: 2.25rem; border-radius: var(--radius-md); border: 1px solid var(--neutral-200); display: flex; align-items: center; justify-content: center; font-size: 0.875rem; flex-shrink: 0; }
+.pf-kc-icon.connected { background: var(--success-50); color: var(--success-600); border-color: var(--success-200); }
+.pf-kc-icon.pending { background: var(--warning-50); color: var(--warning-600); border-color: var(--warning-200); }
+</style>
+
+<div class="pf-page">
+    <h1 class="pf-title">My Profile</h1>
         
         <?php if (isset($_SESSION['error'])): ?>
             <script>
@@ -129,14 +151,11 @@ require_once 'layouts/header.php';
             <?php unset($_SESSION['success']); ?>
         <?php endif; ?>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Profile Information -->
-            <div class="md:col-span-2">
-                <div class="modern-card">
-                    <div class="modern-card-header">
-                        <h2 class="modern-card-title">Profile Information</h2>
-                    </div>
-                    <div class="modern-card-body">
+    <div class="pf-grid">
+        <div>
+            <div class="pf-card">
+                <div class="pf-card-head"><h2>Profile Information</h2></div>
+                <div class="pf-card-body">
                         <form method="POST" class="space-y-6 needs-validation" novalidate>
                             <div class="modern-form-group">
                                 <label for="name" class="modern-form-label">Full Name</label>
@@ -157,15 +176,15 @@ require_once 'layouts/header.php';
                                 
                                 <div class="modern-form-group">
                                     <label for="role" class="modern-form-label">Role</label>
-                                    <select id="role" name="role" class="modern-form-input select2">
+                                    <select id="role" name="role" class="modern-form-input">
                                         <option value="admin" <?php echo ($user['role'] ?? '') === 'admin' ? 'selected' : ''; ?>>Admin</option>
-                                        <option value="user" <?php echo ($user['role'] ?? '') === 'user' ? 'selected' : ''; ?>>User</option>
+                                        <option value="user" <?php echo ($user['role'] ?? '') === 'user' ? 'selected' : ''; ?>>RZM</option>
                                     </select>
                                 </div>
                                 
                                 <div class="modern-form-group">
                                     <label for="region" class="modern-form-label">Region</label>
-                                    <select id="region" name="region" class="modern-form-input select2">
+                                    <select id="region" name="region" class="modern-form-input">
                                         <option value="">Select Region</option>
                                         <?php foreach ($REGIONS_ZONES as $region => $zones): ?>
                                             <option value="<?php echo htmlspecialchars($region); ?>" <?php echo ($user['region'] ?? '') === $region ? 'selected' : ''; ?>>
@@ -177,7 +196,7 @@ require_once 'layouts/header.php';
                                 
                                 <div class="modern-form-group">
                                     <label for="zone" class="modern-form-label">Zone</label>
-                                    <select id="zone" name="zone" class="modern-form-input select2">
+                                    <select id="zone" name="zone" class="modern-form-input">
                                         <option value="">Select Zone</option>
                                         <?php 
                                         if (!empty($user['region']) && isset($REGIONS_ZONES[$user['region']])) {
@@ -197,7 +216,7 @@ require_once 'layouts/header.php';
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                                        <div class="text-gray-900 font-medium"><?php echo ucfirst(htmlspecialchars($user['role'])); ?></div>
+                                        <div class="text-gray-900 font-medium"><?php echo $user['role'] === 'user' ? 'RZM' : ucfirst(htmlspecialchars($user['role'])); ?></div>
                                     </div>
                                     
                                     <div>
@@ -214,21 +233,16 @@ require_once 'layouts/header.php';
                             </div>
                             <?php endif; ?>
                             
-                            <div class="modern-card-footer">
-                                <button type="submit" class="modern-button modern-button-primary">
-                                    <i class="fas fa-save modern-button-icon"></i> Save Changes
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                        <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--neutral-200);">
+                            <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;" data-loading-text="Saving…"><i class="fas fa-save modern-button-icon"></i> Save Changes</button>
+                        </div>
+                    </form>
                 </div>
-                
-                <!-- Change Password -->
-                <div class="modern-card mt-6">
-                    <div class="modern-card-header">
-                        <h2 class="modern-card-title">Change Password</h2>
-                    </div>
-                    <div class="modern-card-body">
+            </div>
+
+            <div class="pf-card">
+                <div class="pf-card-head"><h2>Change Password</h2></div>
+                <div class="pf-card-body">
                         <form method="POST" class="space-y-6 needs-validation" novalidate>
                             <!-- Keep the profile fields but hidden -->
                             <input type="hidden" name="name" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>">
@@ -250,100 +264,56 @@ require_once 'layouts/header.php';
                                 <input type="password" id="confirm_password" name="confirm_password" class="modern-form-input" required>
                             </div>
                             
-                            <div class="modern-card-footer">
-                                <button type="submit" class="modern-button modern-button-primary">
-                                    <i class="fas fa-key modern-button-icon"></i> Update Password
-                                </button>
-                            </div>
-                        </form>
+                    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--neutral-200);">
+                        <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;" data-loading-text="Updating…"><i class="fas fa-key modern-button-icon"></i> Update Password</button>
                     </div>
+                </form>
                 </div>
             </div>
-            
-            <!-- Sidebar -->
-            <div class="md:col-span-1">
-                <!-- Account Status -->
-                <div class="modern-card mb-6">
-                    <div class="modern-card-header">
-                        <h2 class="modern-card-title">Account Status</h2>
-                    </div>
-                    <div class="modern-card-body">
-                        <div class="flex items-center mb-4">
-                            <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 mr-4">
-                                <i class="fas fa-user text-xl"></i>
-                            </div>
-                            <div>
-                                <div class="font-medium text-gray-900"><?php echo htmlspecialchars($user['name'] ?? ''); ?></div>
-                                <div class="text-sm text-gray-500"><?php echo htmlspecialchars($user['username'] ?? ''); ?></div>
-                            </div>
-                        </div>
+        </div>
 
-                        <div class="space-y-3">
-                            <div class="flex justify-between">
-                                <span class="text-sm text-gray-500">Account Type</span>
-                                <span class="text-sm font-medium text-gray-900"><?php echo ucfirst(htmlspecialchars($user['role'])); ?></span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-sm text-gray-500">Status</span>
-                                <span class="modern-badge <?php echo $user['active'] ? 'modern-badge-success' : 'modern-badge-warning'; ?>">
-                                    <?php echo $user['active'] ? 'Active' : 'Pending'; ?>
-                                </span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-sm text-gray-500">Member Since</span>
-                                <span class="text-sm font-medium text-gray-900"><?php echo date('M j, Y', strtotime($user['created_at'])); ?></span>
-                            </div>
+        <!-- Sidebar -->
+        <div>
+            <div class="pf-card">
+                <div class="pf-card-head"><h2>Account</h2></div>
+                <div class="pf-card-body">
+                    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+                        <div class="pf-avatar"><?php echo strtoupper(substr($user['name'] ?? 'U', 0, 1)); ?></div>
+                        <div>
+                            <div style="font-size:0.9rem;font-weight:600;color:var(--neutral-900);"><?php echo htmlspecialchars($user['name'] ?? ''); ?></div>
+                            <div style="font-size:0.8rem;color:var(--neutral-500);">@<?php echo htmlspecialchars($user['username'] ?? ''); ?></div>
                         </div>
                     </div>
+                    <div class="pf-info-row"><span class="pf-info-label">Role</span><span class="pf-info-value"><?php echo $user['role'] === 'user' ? 'RZM' : ucfirst(htmlspecialchars($user['role'])); ?></span></div>
+                    <div class="pf-info-row"><span class="pf-info-label">Status</span><span class="modern-badge <?php echo $user['active'] ? 'modern-badge-success' : 'modern-badge-warning'; ?>"><?php echo $user['active'] ? 'Active' : 'Pending'; ?></span></div>
+                    <div class="pf-info-row"><span class="pf-info-label">Member Since</span><span class="pf-info-value"><?php echo date('M j, Y', strtotime($user['created_at'])); ?></span></div>
                 </div>
+            </div>
 
-                <!-- KingsChat Integration -->
-                <?php
-                require_once __DIR__ . '/includes/kc_link.php';
-                $isKcLinked = kc_is_user_linked((int)$_SESSION['user_id']);
-                $kcUserId = $isKcLinked ? kc_get_kc_by_user_id((int)$_SESSION['user_id']) : null;
-                ?>
-                <div class="modern-card">
-                    <div class="modern-card-header">
-                        <h2 class="modern-card-title">
-                            <i class="fas fa-comment-dots mr-2"></i>KingsChat Integration
-                        </h2>
-                    </div>
-                    <div class="modern-card-body">
-                        <?php if ($isKcLinked): ?>
-                            <div class="flex items-start">
-                                <div class="flex-shrink-0">
-                                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                                        <i class="fas fa-check-circle text-green-600 text-lg"></i>
-                                    </div>
-                                </div>
-                                <div class="ml-3 flex-1">
-                                    <h3 class="text-sm font-medium text-gray-900">Connected</h3>
-                                    <p class="mt-1 text-xs text-gray-500">Your KingsChat account is linked</p>
-                                    <?php if ($kcUserId): ?>
-                                        <p class="mt-2 text-xs text-gray-400 font-mono">ID: <?php echo htmlspecialchars($kcUserId); ?></p>
-                                    <?php endif; ?>
-                                    <button onclick="unlinkKingsChat()" class="mt-3 text-xs text-red-600 hover:text-red-700 font-medium">
-                                        <i class="fas fa-unlink mr-1"></i>Unlink Account
-                                    </button>
-                                </div>
-                            </div>
-                        <?php else: ?>
-                            <div class="flex items-start">
-                                <div class="flex-shrink-0">
-                                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                                        <i class="fas fa-exclamation-circle text-yellow-600 text-lg"></i>
-                                    </div>
-                                </div>
-                                <div class="ml-3 flex-1">
-                                    <h3 class="text-sm font-medium text-gray-900">Not Connected</h3>
-                                    <p class="mt-1 text-xs text-gray-500">Link your KingsChat account for quick login and notifications</p>
-                                    <button onclick="linkKingsChat()" class="mt-3 modern-button modern-button-primary text-xs py-1.5 px-3">
-                                        <i class="fas fa-link mr-1"></i>Link KingsChat
-                                    </button>
-                                </div>
-                            </div>
-                        <?php endif; ?>
+            <!-- KingsChat Integration -->
+            <?php
+            require_once __DIR__ . '/includes/kc_link.php';
+            $isKcLinked = kc_is_user_linked((int)$_SESSION['user_id']);
+            $kcUserId = $isKcLinked ? kc_get_kc_by_user_id((int)$_SESSION['user_id']) : null;
+            ?>
+            <div class="pf-card">
+                <div class="pf-card-head"><h2>KingsChat</h2></div>
+                <div class="pf-card-body">
+                    <div class="pf-kc-row">
+                        <div class="pf-kc-icon <?php echo $isKcLinked ? 'connected' : 'pending'; ?>">
+                            <i class="fas <?php echo $isKcLinked ? 'fa-check' : 'fa-exclamation'; ?>"></i>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.875rem;font-weight:600;color:var(--neutral-900);"><?php echo $isKcLinked ? 'Connected' : 'Not Connected'; ?></div>
+                            <?php if ($isKcLinked): ?>
+                            <div style="font-size:0.8rem;color:var(--neutral-500);margin-top:0.15rem;">KingsChat account is linked</div>
+                            <?php if ($kcUserId): ?><div style="font-size:0.75rem;color:var(--neutral-400);font-family:monospace;margin-top:0.25rem;">ID: <?php echo htmlspecialchars($kcUserId); ?></div><?php endif; ?>
+                            <button onclick="unlinkKingsChat()" style="margin-top:0.6rem;font-size:0.8rem;color:var(--danger-600);background:none;border:none;cursor:pointer;padding:0;"><i class="fas fa-unlink" style="margin-right:0.3rem;"></i>Unlink</button>
+                            <?php else: ?>
+                            <div style="font-size:0.8rem;color:var(--neutral-500);margin-top:0.15rem;">Link for quick login &amp; notifications</div>
+                            <button onclick="linkKingsChat()" class="modern-button modern-button-primary" style="margin-top:0.6rem;font-size:0.8rem;"><i class="fas fa-link modern-button-icon"></i>Link KingsChat</button>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -426,14 +396,6 @@ function unlinkKingsChat() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Select2
-    $('.select2').select2({
-        theme: 'default',
-        width: '100%',
-        placeholder: 'Select an option',
-        allowClear: true
-    });
-
     // Password validation
     const newPassword = document.getElementById('new_password');
     const confirmPassword = document.getElementById('confirm_password');
@@ -473,8 +435,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
 
-            // Trigger change event for Select2
-            $(zoneSelect).trigger('change');
         });
     }
 });

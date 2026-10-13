@@ -1,6 +1,7 @@
 <?php
 require_once '../config/config.php';
 require_once '../includes/auth.php';
+require_once '../includes/audit.php';
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
@@ -59,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['user_id'])) {
         $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
         $stmt->execute([$userId]);
         
+        Audit::log('delete_user', 'user', $userId, 'Deleted user ' . ($user ? $user['username'] : '#' . $userId));
         $_SESSION['success'] = 'User ' . ($user ? $user['username'] : 'ID: ' . $userId) . ' has been deleted successfully';
         header('Location: users.php');
         exit;

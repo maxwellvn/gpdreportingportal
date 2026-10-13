@@ -184,10 +184,12 @@ try {
 
     // Create statistics table
     $header = array('Metric', 'Value', 'Percentage');
+    $distributionRate = $report['total_copies'] > 0 ? round(($report['total_distribution'] / $report['total_copies']) * 100, 1) : 0;
     $data = array(
         array('Total Copies', number_format($report['total_copies']), '100%'),
-        array('Total Distribution', number_format($report['total_distribution']), 
-            round(($report['total_distribution'] / $report['total_copies']) * 100, 1) . '%')
+        array('Total Distribution', number_format($report['total_distribution']), $distributionRate . '%'),
+        array('Distribution - Digital', number_format($report['distribution_digital'] ?? 0), ''),
+        array('Distribution - Physical', number_format($report['distribution_physical'] ?? 0), '')
     );
     $pdf->ColoredTable($header, $data);
     
@@ -207,7 +209,9 @@ try {
         array('Souls Won', $report['souls_won']),
         array('New Churches', $report['new_churches']),
         array('New Partners', $report['new_partners']),
-        array('External Ministers', $report['external_ministers'])
+        array('External Ministers', $report['external_ministers']),
+        array('Crusades', $report['crusades'] ?? 0),
+        array('Testimonies Received', $report['testimonies_received'] ?? 0)
     );
 
     $x = $pdf->GetX();

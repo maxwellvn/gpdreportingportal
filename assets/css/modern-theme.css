@@ -644,23 +644,25 @@ body {
 }
 
 /* Responsive Styles */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .modern-header-nav {
     display: none;
   }
-  
+
   .modern-mobile-menu-button {
     display: flex;
   }
-  
+
   .modern-mobile-menu.active {
     display: block;
   }
-  
+}
+
+@media (max-width: 768px) {
   .modern-user-info {
     display: none;
   }
-  
+
   .modern-main {
     padding: var(--spacing-4) var(--spacing-3);
   }

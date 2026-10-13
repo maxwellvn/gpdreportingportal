@@ -133,8 +133,8 @@ class Statistics {
      * Get zone compliance data with detailed metrics
      */
     public function getZoneCompliance($filters = []) {
-        // Load zones configuration
-        $zonesData = json_decode(file_get_contents(__DIR__ . '/../config/zones.json'), true);
+        // Load the canonical API hierarchy through the shared cache/fallback layer.
+        $zonesData = getRegionsZones();
         
         $whereClause = "WHERE 1=1";
         $params = [];
@@ -518,8 +518,14 @@ class Statistics {
         }
         
         // Check for negative values
-        $negativeValuesQuery = "SELECT COUNT(*) as count FROM reports 
-                               WHERE total_copies < 0 OR souls_won < 0 OR total_distribution < 0";
+        $negativeValuesQuery = "SELECT COUNT(*) as count FROM reports
+                               WHERE total_copies < 0
+                                  OR souls_won < 0
+                                  OR total_distribution < 0
+                                  OR distribution_digital < 0
+                                  OR distribution_physical < 0
+                                  OR crusades < 0
+                                  OR testimonies_received < 0";
         $result = $this->conn->query($negativeValuesQuery)->fetch();
         if ($result['count'] > 0) {
             $issues[] = "Found {$result['count']} reports with negative values";

@@ -2,6 +2,7 @@
 require_once '../../config/config.php';
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/audit.php';
 
 // Ensure user is logged in
 Auth::requireLogin();
@@ -77,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             prayer_programs = :prayer_programs,
             partner_programs = :partner_programs,
             total_distribution = :total_distribution,
+            distribution_digital = :distribution_digital,
+            distribution_physical = :distribution_physical,
             souls_won = :souls_won,
             rhapsody_outreaches = :rhapsody_outreaches,
             rhapsody_cells = :rhapsody_cells,
@@ -87,6 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             languages_sponsored = :languages_sponsored,
             distribution_centers = :distribution_centers,
             external_ministers = :external_ministers,
+            crusades = :crusades,
+            testimonies_received = :testimonies_received,
             syk_outreaches = :syk_outreaches,
             syk_elementary_schools = :syk_elementary_schools,
             syk_orphanages = :syk_orphanages,
@@ -155,6 +160,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("A report for " . $dupeLabel . " already exists for this RZM.");
         }
 
+        $distributionDigital = safeIntVal($_POST['distribution_digital'] ?? '', $report['distribution_digital'] ?? 0);
+        $distributionPhysical = safeIntVal($_POST['distribution_physical'] ?? '', $report['distribution_physical'] ?? 0);
+        $totalDistribution = $distributionDigital + $distributionPhysical;
+
         // Bind parameters
         $params = [
             ':id' => $reportId,
@@ -173,7 +182,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':subscriptions' => safeIntVal($_POST['subscriptions'] ?? '', $report['subscriptions']),
             ':prayer_programs' => safeIntVal($_POST['prayer_programs'] ?? '', $report['prayer_programs']),
             ':partner_programs' => safeIntVal($_POST['partner_programs'] ?? '', $report['partner_programs']),
-            ':total_distribution' => safeIntVal($_POST['total_distribution'] ?? '', $report['total_distribution']),
+            ':total_distribution' => $totalDistribution,
+            ':distribution_digital' => $distributionDigital,
+            ':distribution_physical' => $distributionPhysical,
             ':souls_won' => safeIntVal($_POST['souls_won'] ?? '', $report['souls_won']),
             ':rhapsody_outreaches' => safeIntVal($_POST['rhapsody_outreaches'] ?? '', $report['rhapsody_outreaches']),
             ':rhapsody_cells' => safeIntVal($_POST['rhapsody_cells'] ?? '', $report['rhapsody_cells']),
@@ -184,6 +195,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':languages_sponsored' => safeIntVal($_POST['languages_sponsored'] ?? '', $report['languages_sponsored']),
             ':distribution_centers' => safeIntVal($_POST['distribution_centers'] ?? '', $report['distribution_centers']),
             ':external_ministers' => safeIntVal($_POST['external_ministers'] ?? '', $report['external_ministers']),
+            ':crusades' => safeIntVal($_POST['crusades'] ?? '', $report['crusades'] ?? 0),
+            ':testimonies_received' => safeIntVal($_POST['testimonies_received'] ?? '', $report['testimonies_received'] ?? 0),
             ':syk_outreaches' => safeIntVal($_POST['syk_outreaches'] ?? '', $report['syk_outreaches']),
             ':syk_elementary_schools' => safeIntVal($_POST['syk_elementary_schools'] ?? '', $report['syk_elementary_schools']),
             ':syk_orphanages' => safeIntVal($_POST['syk_orphanages'] ?? '', $report['syk_orphanages']),
@@ -284,6 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $conn->commit();
+        Audit::log('edit_report', 'report', $reportId, 'Edited report #' . $reportId . ' (' . date('F Y', strtotime($dateString)) . ')');
         $_SESSION['success'] = "Report updated successfully";
         header("Location: view.php?id=" . $reportId);
         exit;
@@ -305,688 +319,496 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Include header
 require_once '../../layouts/header.php';
+
+$reportMonthLabel = date('F Y', strtotime($report['report_month']));
+$reportYearVal    = date('Y', strtotime($report['report_month']));
+$reportMonthVal   = date('m', strtotime($report['report_month']));
 ?>
 
-<div class="modern-container">
-    <div class="max-w-4xl mx-auto">
-        <div class="flex items-center mb-6">
-            <a href="view.php?id=<?php echo $reportId; ?>" class="mr-4 text-gray-500 hover:text-gray-700">
-                <i class="fas fa-arrow-left"></i>
-            </a>
-            <h1 class="text-2xl font-bold text-gray-900">Edit Report</h1>
+<style>
+/* reuse cr-* from create.php — defined here for self-containment */
+.cr-page { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+.cr-breadcrumb { display:flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--neutral-400); margin-bottom:1.25rem; flex-wrap:wrap; }
+.cr-breadcrumb a { color:var(--neutral-500); text-decoration:none; }
+.cr-breadcrumb a:hover { color:var(--primary-600); }
+.cr-breadcrumb .sep { color:var(--neutral-300); }
+.cr-head { margin-bottom:1.5rem; }
+.cr-head h1 { font-size:1.25rem; font-weight:700; color:var(--neutral-900); margin:0 0 0.25rem; }
+.cr-head p { font-size:0.8125rem; color:var(--neutral-500); margin:0; }
+.cr-section { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; overflow:hidden; margin-bottom:1.25rem; }
+.cr-section-head { display:flex; align-items:center; gap:0.6rem; padding:0.75rem 1.1rem; background:var(--neutral-50); border-bottom:1px solid var(--neutral-100); }
+.cr-section-head h3 { font-size:0.875rem; font-weight:600; color:var(--neutral-800); margin:0; flex:1; }
+.cr-section-icon { width:1.75rem; height:1.75rem; border-radius:var(--radius-sm); background:var(--primary-100); color:var(--primary-600); display:flex; align-items:center; justify-content:center; font-size:0.75rem; flex-shrink:0; }
+.cr-section-body { padding:1.1rem; }
+.cr-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+@media(max-width:540px) { .cr-grid { grid-template-columns:1fr; } }
+.cr-grid-3 { grid-template-columns:repeat(3,1fr); }
+@media(max-width:680px) { .cr-grid-3 { grid-template-columns:1fr 1fr; } }
+@media(max-width:400px) { .cr-grid-3 { grid-template-columns:1fr; } }
+.cr-field { display:flex; flex-direction:column; gap:0.2rem; }
+.cr-label { font-size:0.78rem; font-weight:600; color:var(--neutral-700); }
+.cr-hint { font-size:0.72rem; color:var(--neutral-400); margin:0; line-height:1.4; }
+.cr-input { width:100%; padding:0.45rem 0.65rem; font-size:0.8125rem; border:1px solid var(--neutral-200); border-radius:var(--radius-md); background:#fff; color:var(--neutral-800); outline:none; transition:border-color 0.15s, box-shadow 0.15s; }
+.cr-input:focus { border-color:var(--primary-400); box-shadow:0 0 0 3px rgba(14,165,233,0.1); }
+.cr-upload-zone { border:2px dashed var(--neutral-200); border-radius:var(--radius-lg); padding:1.1rem; text-align:center; cursor:pointer; transition:border-color 0.15s,background 0.15s; background:var(--neutral-50); }
+.cr-upload-zone:hover,.cr-upload-zone.drag-over { border-color:var(--primary-400); background:var(--primary-50); }
+.cr-upload-zone input[type=file] { display:none; }
+.cr-upload-icon { font-size:1.3rem; color:var(--neutral-300); margin-bottom:0.3rem; }
+.cr-upload-label { font-size:0.8rem; font-weight:600; color:var(--neutral-700); }
+.cr-upload-sub { font-size:0.72rem; color:var(--neutral-400); margin-top:0.1rem; }
+.cr-file-list { margin-top:0.6rem; display:flex; flex-direction:column; gap:0.4rem; }
+.cr-file-item { display:flex; align-items:center; gap:0.5rem; background:#fff; border:1px solid var(--neutral-200); border-radius:var(--radius-sm); padding:0.4rem 0.6rem; font-size:0.78rem; color:var(--neutral-700); }
+.cr-file-item i { color:var(--primary-400); }
+.cr-file-item .cr-file-size { margin-left:auto; color:var(--neutral-400); font-size:0.7rem; }
+.cr-file-item .cr-file-remove { color:var(--danger-400); cursor:pointer; padding:0 0.2rem; background:none; border:none; font-size:0.75rem; }
+.cr-img-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; margin-top:0.75rem; }
+@media(max-width:500px) { .cr-img-grid { grid-template-columns:repeat(3,1fr); } }
+.cr-img-thumb { position:relative; aspect-ratio:1; border-radius:var(--radius-md); overflow:hidden; background:var(--neutral-100); }
+.cr-img-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.cr-img-thumb .cr-img-remove { position:absolute; top:0.2rem; right:0.2rem; width:1.2rem; height:1.2rem; background:rgba(0,0,0,0.55); border-radius:50%; color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none; }
+.cr-img-thumb .cr-img-delete-badge { position:absolute; bottom:0; left:0; right:0; background:rgba(220,38,38,0.85); color:#fff; font-size:0.65rem; font-weight:600; text-align:center; padding:0.15rem 0; }
+.cr-existing-img { position:relative; aspect-ratio:1; border-radius:var(--radius-md); overflow:hidden; background:var(--neutral-100); }
+.cr-existing-img img { width:100%; height:100%; object-fit:cover; display:block; }
+.cr-existing-img label { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0); transition:background 0.15s; cursor:pointer; }
+.cr-existing-img:hover label, .cr-existing-img.marked label { background:rgba(220,38,38,0.55); }
+.cr-existing-img label span { color:#fff; font-size:0.7rem; font-weight:700; display:none; }
+.cr-existing-img:hover label span, .cr-existing-img.marked label span { display:block; }
+.cr-existing-img.marked .cr-del-check { display:block; }
+.cr-del-check { display:none; position:absolute; top:0.3rem; right:0.3rem; width:1.1rem; height:1.1rem; background:var(--danger-500); border-radius:50%; color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+</style>
+
+<div class="cr-page">
+
+    <!-- Breadcrumb -->
+    <div class="cr-breadcrumb">
+        <a href="<?php echo BASE_URL; ?>/dashboard.php"><i class="fas fa-home" style="font-size:0.7rem;"></i> Dashboard</a>
+        <span class="sep">/</span>
+        <a href="list.php">My Reports</a>
+        <span class="sep">/</span>
+        <a href="view.php?id=<?php echo $reportId; ?>"><?php echo $reportMonthLabel; ?></a>
+        <span class="sep">/</span>
+        <span>Edit</span>
+    </div>
+
+    <div class="cr-head">
+        <h1><i class="fas fa-edit" style="color:var(--primary-500);margin-right:0.4rem;font-size:1rem;"></i>Edit Report — <?php echo $reportMonthLabel; ?></h1>
+        <p>Update the numbers for this report. Changes are saved immediately when you click <strong>Save Changes</strong>.</p>
+    </div>
+
+    <?php if (isset($_SESSION['error'])): ?>
+    <script>document.addEventListener('DOMContentLoaded',function(){showToast('<?php echo addslashes($_SESSION['error']); ?>','error',6000);});</script>
+    <?php unset($_SESSION['error']); ?>
+    <?php endif; ?>
+
+    <form method="POST" enctype="multipart/form-data" id="edit-form" novalidate>
+        <input type="hidden" name="csrf_token" value="<?php echo Security::generateCSRFToken(); ?>">
+
+        <!-- ── Section 1: Period & Total Copies ── -->
+        <div class="cr-section">
+            <div class="cr-section-head">
+                <div class="cr-section-icon"><i class="fas fa-calendar-alt"></i></div>
+                <h3>Reporting Period &amp; Total Copies</h3>
+            </div>
+            <div class="cr-section-body">
+                <?php
+                $months = ['01'=>'January','02'=>'February','03'=>'March','04'=>'April','05'=>'May','06'=>'June','07'=>'July','08'=>'August','09'=>'September','10'=>'October','11'=>'November','12'=>'December'];
+                $cy = (int)date('Y');
+                ?>
+                <div class="cr-grid" style="margin-bottom:1rem;">
+                    <div class="cr-field">
+                        <label class="cr-label" for="report_year">Year</label>
+                        <select id="report_year" name="report_year" class="cr-input" required>
+                            <?php for ($y=$cy; $y>=$cy-5; $y--): ?>
+                            <option value="<?php echo $y; ?>" <?php echo $y==(int)$reportYearVal?'selected':''; ?>><?php echo $y; ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                    <div class="cr-field">
+                        <label class="cr-label" for="report_month">Month</label>
+                        <select id="report_month" name="report_month" class="cr-input" required>
+                            <?php foreach ($months as $v => $l): ?>
+                            <option value="<?php echo $v; ?>" <?php echo $v===$reportMonthVal?'selected':''; ?>><?php echo $l; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="cr-hint">Cannot be set to a future month.</p>
+                    </div>
+                </div>
+                <div class="cr-field">
+                    <label class="cr-label" for="total_copies">Total Copies Sponsored</label>
+                    <input type="number" id="total_copies" name="total_copies" class="cr-input"
+                           placeholder="0" min="0" value="<?php echo (int)$report['total_copies']; ?>">
+                    <p class="cr-hint">The total number of Rhapsody copies your zone sponsored this month across all programs.</p>
+                </div>
+            </div>
         </div>
 
-        <?php if (isset($_SESSION['error'])): ?>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    showToast('<?php echo addslashes($_SESSION['error']); ?>', 'error', 5000);
-                });
-            </script>
-            <?php unset($_SESSION['error']); ?>
-        <?php endif; ?>
-
-        <form method="POST" enctype="multipart/form-data" class="modern-card space-y-8 needs-validation" novalidate>
-            <input type="hidden" name="csrf_token" value="<?php echo Security::generateCSRFToken(); ?>">
-            <!-- Report Month -->
-            <div class="modern-card-header">
-                <h2 class="modern-card-title">Edit Monthly Report</h2>
+        <!-- ── Section 2: Alerts & Languages ── -->
+        <div class="cr-section">
+            <div class="cr-section-head">
+                <div class="cr-section-icon"><i class="fas fa-bell"></i></div>
+                <h3>Alerts &amp; Language Missions</h3>
             </div>
-            
-            <div class="modern-card-body">
-                <!-- Report Month -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Report Details</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="modern-form-group">
-                                <label for="report_year" class="modern-form-label">Year</label>
-                                <select id="report_year"
-                                        name="report_year"
-                                        class="modern-form-input select2"
-                                        required>
-                                    <?php
-                                    $reportYear = date('Y', strtotime($report['report_month']));
-                                    $currentYear = (int)date('Y');
-                                    $minYear = $currentYear - 5;
-                                    for ($year = $currentYear; $year >= $minYear; $year--) {
-                                        $selected = ($year == $reportYear) ? 'selected' : '';
-                                        echo "<option value=\"{$year}\" {$selected}>{$year}</option>";
-                                    }
-                                    ?>
-                                </select>
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="report_month" class="modern-form-label">Month</label>
-                                <select id="report_month"
-                                        name="report_month"
-                                        class="modern-form-input select2"
-                                        required>
-                                    <?php
-                                    $months = [
-                                        '01' => 'January',
-                                        '02' => 'February',
-                                        '03' => 'March',
-                                        '04' => 'April',
-                                        '05' => 'May',
-                                        '06' => 'June',
-                                        '07' => 'July',
-                                        '08' => 'August',
-                                        '09' => 'September',
-                                        '10' => 'October',
-                                        '11' => 'November',
-                                        '12' => 'December'
-                                    ];
-                                    $reportMonth = date('m', strtotime($report['report_month']));
-                                    foreach ($months as $value => $label) {
-                                        $selected = ($value === $reportMonth) ? 'selected' : '';
-                                        echo "<option value=\"{$value}\" {$selected}>{$label}</option>";
-                                    }
-                                    ?>
-                                </select>
-                            </div>
+            <div class="cr-section-body">
+                <div class="cr-grid">
+                    <?php
+                    $s2 = [
+                        'wonder_alerts'         => ['Wonder Alerts Received',     'Number of Wonder Alert messages received and distributed this month.'],
+                        'kids_alerts'           => ['Kids Alerts',                'Number of Kids Alert messages received and distributed.'],
+                        'language_missions'     => ['Language Missions',          'Number of language mission activities conducted.'],
+                        'penetrating_truth'     => ['Penetrating with Truth',     'Copies of Penetrating Truth publications distributed.'],
+                        'penetrating_languages' => ['Penetrating with Languages', 'Language-specific outreach copies distributed.'],
+                    ];
+                    foreach ($s2 as $name => [$label, $hint]):
+                    ?>
+                    <div class="cr-field">
+                        <label class="cr-label" for="<?php echo $name; ?>"><?php echo $label; ?></label>
+                        <input type="number" id="<?php echo $name; ?>" name="<?php echo $name; ?>"
+                               class="cr-input" placeholder="0" min="0"
+                               value="<?php echo (int)$report[$name]; ?>">
+                        <p class="cr-hint"><?php echo $hint; ?></p>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Section 3: Campaigns & Programs ── -->
+        <div class="cr-section">
+            <div class="cr-section-head">
+                <div class="cr-section-icon"><i class="fas fa-bullhorn"></i></div>
+                <h3>Campaigns &amp; Programs</h3>
+            </div>
+            <div class="cr-section-body">
+                <div class="cr-grid">
+                    <?php
+                    $s3 = [
+                        'youth_aglow'       => ['Youth Aglow',              'Youth Aglow outreach activities or copies distributed.'],
+                        'minister_campaign' => ['Every Minister Campaign',  'Copies distributed through the Every Minister Campaign.'],
+                        'say_yes_kids'      => ['Say Yes to Kids',          'Copies distributed to children under the Say Yes to Kids program.'],
+                        'no_one_left'       => ['No One Left Behind',       'Activities ensuring no community is unreached.'],
+                        'teevolution'       => ['Teevolution',              'Copies or activities relating to the Teevolution media outreach.'],
+                        'subscriptions'     => ['Subscriptions',            'Total active or new Rhapsody subscription sign-ups this month.'],
+                        'prayer_programs'   => ['Partners Prayer Programs', 'Formal prayer programs organized with or for partners.'],
+                        'partner_programs'  => ['Partners Programs',        'Total partner engagement events or programs held this month.'],
+                    ];
+                    foreach ($s3 as $name => [$label, $hint]):
+                    ?>
+                    <div class="cr-field">
+                        <label class="cr-label" for="<?php echo $name; ?>"><?php echo $label; ?></label>
+                        <input type="number" id="<?php echo $name; ?>" name="<?php echo $name; ?>"
+                               class="cr-input" placeholder="0" min="0"
+                               value="<?php echo (int)$report[$name]; ?>">
+                        <p class="cr-hint"><?php echo $hint; ?></p>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Section 4: Distribution & Growth ── -->
+        <div class="cr-section">
+            <div class="cr-section-head">
+                <div class="cr-section-icon"><i class="fas fa-chart-line"></i></div>
+                <h3>Distribution &amp; Growth Metrics</h3>
+            </div>
+            <div class="cr-section-body">
+                <div class="cr-grid">
+                    <?php
+                    $s4 = [
+                        'total_distribution'   => ['Total Copies Distributed',  'Combined total copies distributed across digital and physical channels.'],
+                        'distribution_digital' => ['Distribution - Digital',    'Copies distributed through digital channels and platforms.'],
+                        'distribution_physical'=> ['Distribution - Physical',   'Copies physically handed out or delivered to recipients.'],
+                        'souls_won'            => ['Souls Won',                 'People who made salvation decisions through outreach.'],
+                        'rhapsody_outreaches'  => ['Rhapsody Outreaches',       'Organised outreach events where Rhapsody was the focus.'],
+                        'rhapsody_cells'       => ['Rhapsody Cells',            'Active Rhapsody cell groups in your zone.'],
+                        'new_churches'         => ['New Churches',              'New churches or fellowships established this month.'],
+                        'new_partners'         => ['New Partners',              'New individuals who signed up as Rhapsody partners.'],
+                        'lingual_cells'        => ['Lingual Cells',             'Cell groups meeting in a language other than English.'],
+                        'language_churches'    => ['Language Churches',         'Churches primarily operating in a non-English language.'],
+                        'languages_sponsored'  => ['Languages Sponsored',       'Distinct languages with Rhapsody copies produced/distributed.'],
+                        'distribution_centers' => ['Distribution Centers',      'Active Rhapsody distribution points or depots in your zone.'],
+                        'external_ministers'   => ['External Ministers',        'Ministers from outside your zone who supported outreach.'],
+                        'crusades'             => ['Crusades',                  'Crusades held or supported this month.'],
+                        'testimonies_received' => ['Testimonies Received',       'Number of testimonies received this month. This does not replace the written testimonies document upload.'],
+                    ];
+                    foreach ($s4 as $name => [$label, $hint]):
+                    $isCalculatedDistribution = $name === 'total_distribution';
+                    ?>
+                    <div class="cr-field">
+                        <label class="cr-label" for="<?php echo $name; ?>"><?php echo $label; ?></label>
+                        <input type="number" id="<?php echo $name; ?>" name="<?php echo $name; ?>"
+                               class="cr-input" placeholder="0" min="0" <?php echo $isCalculatedDistribution ? 'readonly' : ''; ?>
+                               value="<?php echo (int)$report[$name]; ?>">
+                        <p class="cr-hint"><?php echo $hint; ?></p>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Section 5: Say Yes to Kids ── -->
+        <div class="cr-section">
+            <div class="cr-section-head">
+                <div class="cr-section-icon"><i class="fas fa-child"></i></div>
+                <h3>Say Yes to Kids — Detailed Impact</h3>
+            </div>
+            <div class="cr-section-body">
+                <div class="cr-grid cr-grid-3">
+                    <?php
+                    $s5 = [
+                        'syk_outreaches'         => ['Outreaches Held',     'Say Yes to Kids outreach events conducted this month.'],
+                        'syk_elementary_schools' => ['Schools Reached',     'Primary/elementary schools visited or engaged.'],
+                        'syk_orphanages'         => ['Orphanages Reached',  'Orphanages or children\'s homes visited.'],
+                        'syk_children_reached'   => ['Children Reached',    'Total children who received materials or participated.'],
+                        'syk_souls_won'          => ['Children Saved',      'Children who made salvation decisions.'],
+                        'syk_souls_retained'     => ['Children Retained',   'Saved children being followed up and retained in fellowship.'],
+                        'syk_rork_clubs'         => ['RORK Clubs',          'Rhapsody of Realities for Kids clubs currently active.'],
+                    ];
+                    foreach ($s5 as $name => [$label, $hint]):
+                    ?>
+                    <div class="cr-field">
+                        <label class="cr-label" for="<?php echo $name; ?>"><?php echo $label; ?></label>
+                        <input type="number" id="<?php echo $name; ?>" name="<?php echo $name; ?>"
+                               class="cr-input" placeholder="0" min="0"
+                               value="<?php echo (int)$report[$name]; ?>">
+                        <p class="cr-hint"><?php echo $hint; ?></p>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Section 6: Files & Images ── -->
+        <div class="cr-section">
+            <div class="cr-section-head">
+                <div class="cr-section-icon"><i class="fas fa-paperclip"></i></div>
+                <h3>Supporting Documents &amp; Images</h3>
+            </div>
+            <div class="cr-section-body">
+                <p style="font-size:0.8rem;color:var(--neutral-500);margin:0 0 1rem;">Upload a new file to replace an existing one, or leave blank to keep the current file.</p>
+
+                <div class="cr-grid" style="margin-bottom:1.25rem;">
+                    <!-- Testimonies -->
+                    <div class="cr-field">
+                        <label class="cr-label">Testimonies Document</label>
+                        <?php if ($report['testimonies_file']): ?>
+                        <div class="cr-file-item" style="margin-bottom:0.4rem;">
+                            <i class="fas fa-file-alt"></i>
+                            <a href="<?php echo BASE_URL; ?>/uploads/documents/<?php echo htmlspecialchars($report['testimonies_file']); ?>"
+                               target="_blank" style="color:var(--primary-600);text-decoration:none;font-size:0.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:12rem;">
+                                <?php echo htmlspecialchars($report['testimonies_file']); ?>
+                            </a>
+                            <span style="margin-left:auto;font-size:0.68rem;color:var(--neutral-400);">current</span>
                         </div>
-                        <p class="mt-2 text-sm text-gray-500">Select the month and year for this report (cannot be a future month)</p>
+                        <?php endif; ?>
+                        <div class="cr-upload-zone" id="zone-testimonies-edit" onclick="document.getElementById('testimonies_file').click()">
+                            <input type="file" id="testimonies_file" name="testimonies_file" accept=".pdf,.doc,.docx">
+                            <div class="cr-upload-icon"><i class="fas fa-file-alt"></i></div>
+                            <div class="cr-upload-label"><?php echo $report['testimonies_file'] ? 'Click to replace' : 'Click to upload'; ?></div>
+                            <div class="cr-upload-sub">PDF, DOC, DOCX — max 10 MB</div>
+                        </div>
+                        <div class="cr-file-list" id="list-testimonies"></div>
+                    </div>
+                    <!-- Innovations -->
+                    <div class="cr-field">
+                        <label class="cr-label">Innovations Document</label>
+                        <?php if ($report['innovations_file']): ?>
+                        <div class="cr-file-item" style="margin-bottom:0.4rem;">
+                            <i class="fas fa-lightbulb"></i>
+                            <a href="<?php echo BASE_URL; ?>/uploads/documents/<?php echo htmlspecialchars($report['innovations_file']); ?>"
+                               target="_blank" style="color:var(--primary-600);text-decoration:none;font-size:0.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:12rem;">
+                                <?php echo htmlspecialchars($report['innovations_file']); ?>
+                            </a>
+                            <span style="margin-left:auto;font-size:0.68rem;color:var(--neutral-400);">current</span>
+                        </div>
+                        <?php endif; ?>
+                        <div class="cr-upload-zone" id="zone-innovations-edit" onclick="document.getElementById('innovations_file').click()">
+                            <input type="file" id="innovations_file" name="innovations_file" accept=".pdf,.doc,.docx">
+                            <div class="cr-upload-icon"><i class="fas fa-lightbulb"></i></div>
+                            <div class="cr-upload-label"><?php echo $report['innovations_file'] ? 'Click to replace' : 'Click to upload'; ?></div>
+                            <div class="cr-upload-sub">PDF, DOC, DOCX — max 10 MB</div>
+                        </div>
+                        <div class="cr-file-list" id="list-innovations"></div>
                     </div>
                 </div>
 
-                <!-- Total Copies -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Total Copies Sponsored</h3>
-                    <div class="modern-section-body">
-                        <div class="modern-form-group">
-                            <label for="total_copies" class="modern-form-label">Total Number of Copies Sponsored</label>
-                            <input type="number"
-                                   id="total_copies"
-                                   name="total_copies"
-                                   value="<?php echo $report['total_copies']; ?>"
-                                   class="modern-form-input"
-                                   placeholder="Enter total copies">
+                <!-- Existing images -->
+                <?php if ($images): ?>
+                <div style="margin-bottom:1rem;">
+                    <p class="cr-label" style="margin-bottom:0.5rem;">Current Images <span style="font-weight:400;color:var(--neutral-400);font-size:0.7rem;">— click an image to mark it for deletion</span></p>
+                    <div class="cr-img-grid">
+                        <?php foreach ($images as $img): ?>
+                        <div class="cr-existing-img" onclick="toggleDeleteImg(this)">
+                            <img src="<?php echo BASE_URL; ?>/uploads/pictures/<?php echo htmlspecialchars($img['image_path']); ?>" alt="">
+                            <label><span><i class="fas fa-trash-alt"></i> Remove</span></label>
+                            <input type="checkbox" name="delete_images[]" value="<?php echo (int)$img['id']; ?>"
+                                   style="display:none;" class="del-img-cb">
+                            <div class="cr-del-check"><i class="fas fa-times"></i></div>
                         </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
+                <?php endif; ?>
 
-                <!-- Monthly Stats -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Monthly Statistics</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="modern-form-group">
-                                <label for="wonder_alerts" class="modern-form-label">Number of Wonder Alerts Received</label>
-                                <input type="number"
-                                       id="wonder_alerts"
-                                       name="wonder_alerts"
-                                       value="<?php echo $report['wonder_alerts']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter number of wonder alerts received">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="kids_alerts" class="modern-form-label">Kids Alerts</label>
-                                <input type="number"
-                                       id="kids_alerts"
-                                       name="kids_alerts"
-                                       value="<?php echo $report['kids_alerts']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter kids alerts">
-                            </div>
-                        </div>
+                <!-- New images -->
+                <div class="cr-field">
+                    <label class="cr-label">Add New Images <span style="font-weight:400;color:var(--neutral-400);font-size:0.7rem;">(optional)</span></label>
+                    <div class="cr-upload-zone" id="zone-images" onclick="document.getElementById('report_images').click()">
+                        <input type="file" id="report_images" name="report_images[]" multiple accept="image/*">
+                        <div class="cr-upload-icon"><i class="fas fa-images"></i></div>
+                        <div class="cr-upload-label">Click or drag &amp; drop images here</div>
+                        <div class="cr-upload-sub">JPG, PNG, GIF — up to 10 images</div>
                     </div>
+                    <div class="cr-img-grid" id="img-preview"></div>
                 </div>
 
-                <!-- Language and Truth -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Languages</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="modern-form-group">
-                                <label for="language_missions" class="modern-form-label">Language Missions</label>
-                                <input type="number"
-                                       id="language_missions"
-                                       name="language_missions"
-                                       value="<?php echo $report['language_missions']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter language missions">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="penetrating_truth" class="modern-form-label">Penetrating with Truth</label>
-                                <input type="number"
-                                       id="penetrating_truth"
-                                       name="penetrating_truth"
-                                       value="<?php echo $report['penetrating_truth']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter penetrating with truth">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="penetrating_languages" class="modern-form-label">Penetrating with Languages</label>
-                                <input type="number"
-                                       id="penetrating_languages"
-                                       name="penetrating_languages"
-                                       value="<?php echo $report['penetrating_languages']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter penetrating with languages">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Campaigns -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Campaigns</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="modern-form-group">
-                                <label for="youth_aglow" class="modern-form-label">Youth Aglow</label>
-                                <input type="number"
-                                       id="youth_aglow"
-                                       name="youth_aglow"
-                                       value="<?php echo $report['youth_aglow']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter youth aglow">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="minister_campaign" class="modern-form-label">Every Minister Campaign</label>
-                                <input type="number"
-                                       id="minister_campaign"
-                                       name="minister_campaign"
-                                       value="<?php echo $report['minister_campaign']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter minister campaign">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="say_yes_kids" class="modern-form-label">Say Yes to Kids</label>
-                                <input type="number"
-                                       id="say_yes_kids"
-                                       name="say_yes_kids"
-                                       value="<?php echo $report['say_yes_kids']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter say yes to kids">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="no_one_left" class="modern-form-label">No One Left Behind</label>
-                                <input type="number"
-                                       id="no_one_left"
-                                       name="no_one_left"
-                                       value="<?php echo $report['no_one_left']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter no one left behind">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="teevolution" class="modern-form-label">Teevolution</label>
-                                <input type="number"
-                                       id="teevolution"
-                                       name="teevolution"
-                                       value="<?php echo $report['teevolution']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter teevolution">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="subscriptions" class="modern-form-label">Subscriptions</label>
-                                <input type="number"
-                                       id="subscriptions"
-                                       name="subscriptions"
-                                       value="<?php echo $report['subscriptions']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter subscriptions">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Program Report -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Program Report</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="modern-form-group">
-                                <label for="prayer_programs" class="modern-form-label">Partners Prayer Programs</label>
-                                <input type="number"
-                                       id="prayer_programs"
-                                       name="prayer_programs"
-                                       value="<?php echo $report['prayer_programs']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter prayer programs">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="partner_programs" class="modern-form-label">Partners Programs</label>
-                                <input type="number"
-                                       id="partner_programs"
-                                       name="partner_programs"
-                                       value="<?php echo $report['partner_programs']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter partner programs">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Distribution and Impact -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Distribution and Impact</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="modern-form-group">
-                                <label for="total_distribution" class="modern-form-label">Total Copies Distributed</label>
-                                <input type="number"
-                                       id="total_distribution"
-                                       name="total_distribution"
-                                       value="<?php echo $report['total_distribution']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter total distribution">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="souls_won" class="modern-form-label">Souls Won</label>
-                                <input type="number"
-                                       id="souls_won"
-                                       name="souls_won"
-                                       value="<?php echo $report['souls_won']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter souls won">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="rhapsody_outreaches" class="modern-form-label">Rhapsody Outreaches</label>
-                                <input type="number"
-                                       id="rhapsody_outreaches"
-                                       name="rhapsody_outreaches"
-                                       value="<?php echo $report['rhapsody_outreaches']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter rhapsody outreaches">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="rhapsody_cells" class="modern-form-label">Rhapsody Cells</label>
-                                <input type="number"
-                                       id="rhapsody_cells"
-                                       name="rhapsody_cells"
-                                       value="<?php echo $report['rhapsody_cells']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter rhapsody cells">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Growth Metrics -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Growth Metrics</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="modern-form-group">
-                                <label for="new_churches" class="modern-form-label">New Churches</label>
-                                <input type="number"
-                                       id="new_churches"
-                                       name="new_churches"
-                                       value="<?php echo $report['new_churches']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter new churches">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="new_partners" class="modern-form-label">New Partners</label>
-                                <input type="number"
-                                       id="new_partners"
-                                       name="new_partners"
-                                       value="<?php echo $report['new_partners']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter new partners">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="lingual_cells" class="modern-form-label">Lingual Cells</label>
-                                <input type="number"
-                                       id="lingual_cells"
-                                       name="lingual_cells"
-                                       value="<?php echo $report['lingual_cells']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter lingual cells">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="language_churches" class="modern-form-label">Language Churches</label>
-                                <input type="number"
-                                       id="language_churches"
-                                       name="language_churches"
-                                       value="<?php echo $report['language_churches']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter language churches">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="languages_sponsored" class="modern-form-label">Languages Sponsored</label>
-                                <input type="number"
-                                       id="languages_sponsored"
-                                       name="languages_sponsored"
-                                       value="<?php echo $report['languages_sponsored']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter languages sponsored">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="distribution_centers" class="modern-form-label">Distribution Centers</label>
-                                <input type="number"
-                                       id="distribution_centers"
-                                       name="distribution_centers"
-                                       value="<?php echo $report['distribution_centers']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter distribution centers">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="external_ministers" class="modern-form-label">External Ministers</label>
-                                <input type="number"
-                                       id="external_ministers"
-                                       name="external_ministers"
-                                       value="<?php echo $report['external_ministers']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter external ministers">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Say Yes to Kids Impact -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Say Yes to Kids Impact</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            <div class="modern-form-group">
-                                <label for="syk_outreaches" class="modern-form-label">Number of Outreaches</label>
-                                <input type="number"
-                                       id="syk_outreaches"
-                                       name="syk_outreaches"
-                                       value="<?php echo $report['syk_outreaches']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter number of outreaches">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="syk_elementary_schools" class="modern-form-label">Elementary Schools Reached</label>
-                                <input type="number"
-                                       id="syk_elementary_schools"
-                                       name="syk_elementary_schools"
-                                       value="<?php echo $report['syk_elementary_schools']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter number of schools">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="syk_orphanages" class="modern-form-label">Orphanages Reached</label>
-                                <input type="number"
-                                       id="syk_orphanages"
-                                       name="syk_orphanages"
-                                       value="<?php echo $report['syk_orphanages']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter number of orphanages">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="syk_children_reached" class="modern-form-label">Number of Children Reached</label>
-                                <input type="number"
-                                       id="syk_children_reached"
-                                       name="syk_children_reached"
-                                       value="<?php echo $report['syk_children_reached']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter number of children reached">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="syk_souls_won" class="modern-form-label">Souls (Children) Won</label>
-                                <input type="number"
-                                       id="syk_souls_won"
-                                       name="syk_souls_won"
-                                       value="<?php echo $report['syk_souls_won']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter number of souls won">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="syk_souls_retained" class="modern-form-label">Souls Retained</label>
-                                <input type="number"
-                                       id="syk_souls_retained"
-                                       name="syk_souls_retained"
-                                       value="<?php echo $report['syk_souls_retained']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter number of souls retained">
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="syk_rork_clubs" class="modern-form-label">RORK Clubs</label>
-                                <input type="number"
-                                       id="syk_rork_clubs"
-                                       name="syk_rork_clubs"
-                                       value="<?php echo $report['syk_rork_clubs']; ?>"
-                                       class="modern-form-input"
-                                       placeholder="Enter number of RORK clubs">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- File Uploads -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Supporting Documents</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 gap-6">
-                            <div class="modern-form-group">
-                                <label for="testimonies_file" class="modern-form-label">Testimonies File</label>
-                                <input type="file"
-                                       id="testimonies_file"
-                                       name="testimonies_file"
-                                       class="modern-form-file">
-                                <?php if ($report['testimonies_file']): ?>
-                                    <div class="mt-2 flex items-center">
-                                        <span class="text-sm text-gray-500 mr-2">Current file:</span>
-                                        <a href="../../uploads/documents/<?php echo htmlspecialchars($report['testimonies_file']); ?>" 
-                                           class="text-primary-600 hover:text-primary-800 text-sm"
-                                           target="_blank">
-                                            <?php echo $report['testimonies_file']; ?>
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                                <p class="modern-form-help">Upload a new file to replace the current one (PDF, DOC, DOCX)</p>
-                            </div>
-                            <div class="modern-form-group">
-                                <label for="innovations_file" class="modern-form-label">Innovations File</label>
-                                <input type="file"
-                                       id="innovations_file"
-                                       name="innovations_file"
-                                       class="modern-form-file">
-                                <?php if ($report['innovations_file']): ?>
-                                    <div class="mt-2 flex items-center">
-                                        <span class="text-sm text-gray-500 mr-2">Current file:</span>
-                                        <a href="../../uploads/documents/<?php echo htmlspecialchars($report['innovations_file']); ?>" 
-                                           class="text-primary-600 hover:text-primary-800 text-sm"
-                                           target="_blank">
-                                            <?php echo $report['innovations_file']; ?>
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                                <p class="modern-form-help">Upload a new file to replace the current one (PDF, DOC, DOCX)</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Image Uploads -->
-                <div class="modern-section">
-                    <h3 class="modern-section-title">Report Images</h3>
-                    <div class="modern-section-body">
-                        <div class="grid grid-cols-1 gap-6">
-                            <!-- Existing Images -->
-                            <?php if ($images): ?>
-                            <div class="mb-4">
-                                <h4 class="text-sm font-medium text-gray-700 mb-3">Current Images</h4>
-                                <p class="text-sm text-gray-500 mb-3">Hover over images and check the ones you want to delete</p>
-                                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                    <?php foreach ($images as $image): ?>
-                                    <div class="relative group">
-                                        <img src="../../uploads/pictures/<?php echo htmlspecialchars($image['image_path']); ?>"
-                                             alt="Report Image"
-                                             class="w-full h-32 object-cover rounded-lg shadow-sm">
-                                        <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-50 rounded-lg">
-                                            <label class="flex items-center space-x-2 text-white cursor-pointer">
-                                            <input type="checkbox"
-                                                   name="delete_images[]"
-                                                   value="<?php echo $image['id']; ?>"
-                                                   class="rounded border-gray-300 text-danger-600 shadow-sm focus:border-danger-300 focus:ring focus:ring-danger-200 focus:ring-opacity-50">
-                                                <span>Delete</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-
-                            <!-- Upload New Images -->
-                            <div class="modern-form-group">
-                                <label for="report_images" class="modern-form-label">Add New Images</label>
-                                <input type="file"
-                                       id="report_images"
-                                       name="report_images[]"
-                                       multiple
-                                       accept="image/*"
-                                       class="modern-form-file">
-                                <p class="modern-form-help">You can select multiple images to add to this report (JPG, PNG, GIF)</p>
-                            </div>
-                            <div id="image-preview" class="mt-4"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Submit Button -->
-                <div class="modern-card-footer">
-                    <button type="submit" id="submit-report-btn" class="modern-button modern-button-primary">
-                        <i class="fas fa-save modern-button-icon"></i> Update Report
+                <!-- Submit -->
+                <div style="border-top:1px solid var(--neutral-100);margin-top:1.5rem;padding-top:1.25rem;display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+                    <button type="submit" id="submit-report-btn" class="modern-button modern-button-primary"
+                            data-loading-text="Saving changes…" style="min-width:10rem;">
+                        <i class="fas fa-save modern-button-icon"></i> Save Changes
                     </button>
+                    <a href="view.php?id=<?php echo $reportId; ?>" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">
+                        Cancel
+                    </a>
                 </div>
             </div>
-        </form>
-    </div>
+        </div>
+
+    </form>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Select2 for all select elements
-    $('.select2').select2({
-        theme: 'default',
-        width: '100%',
-        placeholder: 'Select an option',
-        allowClear: true
-    });
-    
-    // Add validation for month and year selection
-    const monthSelect = document.getElementById('report_month');
-    const yearSelect = document.getElementById('report_year');
+(function() {
 
-    // Function to validate that the selected month is not in the future
-    function validateReportDate() {
-        const selectedMonth = parseInt(monthSelect.value, 10);
-        const selectedYear = parseInt(yearSelect.value, 10);
-        const currentDate = new Date();
-        const currentYear = currentDate.getFullYear();
-        const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
-
-        // Allow current month and past months, but not future months
-        if (selectedYear > currentYear || (selectedYear === currentYear && selectedMonth > currentMonth)) {
-            showAlert('Invalid Date', 'You cannot select a future month for your report.', 'error');
-
-            // Reset to current month and year
-            monthSelect.value = String(currentMonth).padStart(2, '0');
-            yearSelect.value = currentYear;
-            
-            // Update Select2 controls
-            $('#report_month').trigger('change');
-            $('#report_year').trigger('change');
-
-            return false;
-        }
-        return true;
+function validateReportDate() {
+    var m = parseInt(document.getElementById('report_month').value, 10);
+    var y = parseInt(document.getElementById('report_year').value, 10);
+    var now = new Date();
+    if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth() + 1)) {
+        showToast('You cannot select a future month.', 'error');
+        document.getElementById('report_month').value = String(now.getMonth()+1).padStart(2,'0');
+        document.getElementById('report_year').value  = now.getFullYear();
+        return false;
     }
+    return true;
+}
 
-    // Add event listeners for change events
-    $('#report_month').on('change', validateReportDate);
-    $('#report_year').on('change', validateReportDate);
+function updateTotalDistribution() {
+    var digital = document.getElementById('distribution_digital');
+    var physical = document.getElementById('distribution_physical');
+    var total = document.getElementById('total_distribution');
+    if (!digital || !physical || !total) return;
+    total.value = (parseInt(digital.value, 10) || 0) + (parseInt(physical.value, 10) || 0);
+}
 
-    // Add form validation before submission
-    const form = document.querySelector('form');
-    form.addEventListener('submit', function(event) {
-        if (!form.checkValidity()) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            // Show toast for invalid form
-            showToast('Please check the form for errors.', 'error');
-            
-            // Find the first invalid field and focus it
-            const firstInvalid = form.querySelector(':invalid');
-            if (firstInvalid) {
-                firstInvalid.focus();
-            }
-        } else if (!validateReportDate()) {
-            event.preventDefault();
-        } else {
-            // Confirm before submitting
-            if (document.querySelectorAll('input[name="delete_images[]"]:checked').length > 0) {
-                event.preventDefault();
-                
-                Swal.fire({
-                    title: 'Confirm Image Deletion',
-                    text: 'You have selected some images to delete. This action cannot be undone. Do you want to continue?',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: 'var(--danger-600)',
-                    cancelButtonColor: 'var(--gray-500)',
-                    confirmButtonText: 'Yes, delete them',
-                    cancelButtonText: 'Cancel'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        // Show loading state
-                        const submitBtn = document.getElementById('submit-report-btn');
-                        submitBtn.disabled = true;
-                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Updating...';
-                        
-                        // Submit the form
-                        form.submit();
-                    }
-                });
-            } else {
-                // Show loading state
-                const submitBtn = document.getElementById('submit-report-btn');
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Updating...';
-            }
-        }
-        
-        form.classList.add('was-validated');
+function setupUploadZone(zoneId, inputId, listId) {
+    var zone  = document.getElementById(zoneId);
+    var input = document.getElementById(inputId);
+    var list  = document.getElementById(listId);
+    if (!zone || !input || !list) return;
+    function fmtSize(b) { return b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'; }
+    function renderFile(file) {
+        list.innerHTML = '';
+        var ext = (file.name.split('.').pop()||'').toLowerCase();
+        var icon = ext==='pdf'?'fa-file-pdf':'fa-file-word';
+        var item = document.createElement('div'); item.className='cr-file-item';
+        item.innerHTML='<i class="fas '+icon+'"></i><span>'+file.name+'</span>'
+            +'<span class="cr-file-size">'+fmtSize(file.size)+'</span>'
+            +'<button type="button" class="cr-file-remove" title="Remove"><i class="fas fa-times"></i></button>';
+        item.querySelector('.cr-file-remove').addEventListener('click',function(){ input.value=''; list.innerHTML=''; zone.style.borderColor=''; });
+        list.appendChild(item);
+        zone.style.borderColor='var(--success-400)';
+    }
+    input.addEventListener('change', function(){ if(this.files&&this.files[0]) renderFile(this.files[0]); });
+    zone.addEventListener('dragover',function(e){e.preventDefault();zone.classList.add('drag-over');});
+    zone.addEventListener('dragleave',function(){zone.classList.remove('drag-over');});
+    zone.addEventListener('drop',function(e){
+        e.preventDefault();zone.classList.remove('drag-over');
+        var dt=e.dataTransfer;
+        if(dt&&dt.files&&dt.files[0]){try{var t=new DataTransfer();t.items.add(dt.files[0]);input.files=t.files;renderFile(dt.files[0]);}catch(err){}}
     });
+}
 
-    // Image preview functionality
-    const imageInput = document.querySelector('input[name="report_images[]"]');
-    const previewContainer = document.getElementById('image-preview');
+function setupImageUpload() {
+    var zone=document.getElementById('zone-images');
+    var input=document.getElementById('report_images');
+    var preview=document.getElementById('img-preview');
+    if(!zone||!input||!preview) return;
+    var imageFiles=[];
+    function renderPreviews(){
+        preview.innerHTML='';
+        imageFiles.forEach(function(file,idx){
+            var thumb=document.createElement('div');thumb.className='cr-img-thumb';
+            var reader=new FileReader();
+            reader.onload=function(e){
+                thumb.innerHTML='<img src="'+e.target.result+'" alt="">'
+                    +'<button type="button" class="cr-img-remove" data-idx="'+idx+'" title="Remove"><i class="fas fa-times"></i></button>';
+                thumb.querySelector('.cr-img-remove').addEventListener('click',function(){
+                    imageFiles.splice(parseInt(this.dataset.idx,10),1);rebuildInput();renderPreviews();
+                });
+            };
+            reader.readAsDataURL(file);
+            preview.appendChild(thumb);
+        });
+    }
+    function rebuildInput(){try{var dt=new DataTransfer();imageFiles.forEach(function(f){dt.items.add(f);});input.files=dt.files;}catch(e){}}
+    function addFiles(files){
+        Array.from(files).forEach(function(f){if(f.type.startsWith('image/')&&imageFiles.length<10)imageFiles.push(f);});
+        rebuildInput();renderPreviews();
+        if(files.length) showToast(imageFiles.length+' image'+(imageFiles.length!==1?'s':'')+' selected','success');
+    }
+    input.addEventListener('change',function(){addFiles(this.files);});
+    zone.addEventListener('dragover',function(e){e.preventDefault();zone.classList.add('drag-over');});
+    zone.addEventListener('dragleave',function(){zone.classList.remove('drag-over');});
+    zone.addEventListener('drop',function(e){e.preventDefault();zone.classList.remove('drag-over');if(e.dataTransfer&&e.dataTransfer.files)addFiles(e.dataTransfer.files);});
+}
 
-    imageInput.addEventListener('change', function() {
-        previewContainer.innerHTML = ''; // Clear existing previews
+window.toggleDeleteImg = function(el) {
+    el.classList.toggle('marked');
+    var cb = el.querySelector('.del-img-cb');
+    if (cb) cb.checked = el.classList.contains('marked');
+};
 
-        if (this.files && this.files.length > 0) {
-            const files = Array.from(this.files);
+document.addEventListener('DOMContentLoaded', function() {
+    var mo = document.getElementById('report_month');
+    var yo = document.getElementById('report_year');
+    if (mo) mo.addEventListener('change', validateReportDate);
+    if (yo) yo.addEventListener('change', validateReportDate);
 
-            // Create preview grid
-            const grid = document.createElement('div');
-            grid.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4';
+    setupUploadZone('zone-testimonies-edit', 'testimonies_file', 'list-testimonies');
+    setupUploadZone('zone-innovations-edit',  'innovations_file',  'list-innovations');
+    setupImageUpload();
 
-            files.forEach(file => {
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
+    ['distribution_digital', 'distribution_physical'].forEach(function(id) {
+        var input = document.getElementById(id);
+        if (input) input.addEventListener('input', updateTotalDistribution);
+    });
+    updateTotalDistribution();
 
-                    reader.onload = function(e) {
-                        const previewDiv = document.createElement('div');
-                        previewDiv.className = 'relative aspect-square bg-gray-100 rounded-lg overflow-hidden';
-
-                        const img = document.createElement('img');
-                        img.src = e.target.result;
-                        img.className = 'w-full h-full object-cover';
-
-                        previewDiv.appendChild(img);
-                        grid.appendChild(previewDiv);
-                    };
-
-                    reader.readAsDataURL(file);
-                }
+    var form = document.getElementById('edit-form');
+    form.addEventListener('submit', function(e) {
+        if (!validateReportDate()) { e.preventDefault(); return; }
+        updateTotalDistribution();
+        var toDelete = document.querySelectorAll('input[name="delete_images[]"]:checked').length;
+        if (toDelete > 0) {
+            e.preventDefault();
+            Swal.fire({
+                title: 'Delete ' + toDelete + ' image' + (toDelete > 1 ? 's' : '') + '?',
+                text: 'This cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: 'var(--danger-600)',
+                confirmButtonText: 'Yes, delete',
+                cancelButtonText: 'Cancel'
+            }).then(function(result) {
+                if (result.isConfirmed) form.submit();
             });
-
-            previewContainer.appendChild(grid);
-            
-            // Show success toast
-            showToast(`${files.length} image${files.length > 1 ? 's' : ''} selected for upload`, 'success');
         }
     });
 });
+
+})();
 </script>
 
 <?php require_once '../../layouts/footer.php'; ?>

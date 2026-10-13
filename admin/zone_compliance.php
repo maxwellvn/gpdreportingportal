@@ -81,138 +81,122 @@ $nonCompliantCount = $totalZones - $compliantCount;
 require_once '../layouts/header.php';
 ?>
 
-<div class="container mx-auto px-4 py-8">
-    <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-2xl font-bold text-gray-900 mb-2">Zone Compliance</h1>
-        <p class="text-gray-600">Monitor which zones are submitting reports and which need attention</p>
+<style>
+.zc-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+.zc-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; }
+.zc-topbar-left h1 { font-size:1.125rem; font-weight:700; color:var(--neutral-900); margin:0 0 0.15rem; }
+.zc-topbar-left p { font-size:0.85rem; color:var(--neutral-500); margin:0; }
+.zc-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--neutral-200); border:1px solid var(--neutral-200); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1.25rem; }
+.zc-stat { background:#fff; padding:1rem 1.25rem; }
+.zc-stat-label { font-size:0.75rem; color:var(--neutral-500); margin-bottom:0.2rem; }
+.zc-stat-value { font-size:1.5rem; font-weight:700; }
+.zc-section { border:1px solid var(--neutral-200); border-radius:var(--radius-lg); background:#fff; margin-bottom:1.25rem; overflow:hidden; }
+.zc-section-head { padding:0.85rem 1.25rem; border-bottom:1px solid var(--neutral-200); display:flex; align-items:center; justify-content:space-between; }
+.zc-section-head h2 { font-size:0.875rem; font-weight:600; color:var(--neutral-900); margin:0; text-transform:uppercase; letter-spacing:0.04em; }
+.zc-section-body { padding:1.25rem; }
+.zc-filter-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.875rem; }
+@media(max-width:768px){ .zc-filter-grid { grid-template-columns:repeat(2,1fr); } }
+@media(max-width:480px){ .zc-filter-grid { grid-template-columns:1fr; } }
+.zc-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+.zc-table th { padding:0.65rem 1rem; text-align:left; font-size:0.7rem; font-weight:600; color:var(--neutral-500); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid var(--neutral-200); }
+.zc-table td { padding:0.75rem 1rem; border-bottom:1px solid var(--neutral-100); color:var(--neutral-800); }
+.zc-table tr:last-child td { border-bottom:none; }
+.zc-table tbody tr:hover td { background:var(--neutral-50); }
+</style>
+
+<div class="zc-page">
+    <div class="zc-topbar">
+        <div class="zc-topbar-left">
+            <h1>Zone Compliance</h1>
+            <p>Monitor which zones are submitting reports and which need attention</p>
+        </div>
+        <a href="dashboard.php" class="modern-button modern-button-secondary" style="font-size:0.8125rem;"><i class="fas fa-arrow-left modern-button-icon"></i> Back to Dashboard</a>
     </div>
 
-    <!-- Summary Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Zones</h3>
-            <p class="text-3xl font-bold text-blue-600"><?php echo $totalZones; ?></p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Compliant Zones</h3>
-            <p class="text-3xl font-bold text-green-600"><?php echo $compliantCount; ?></p>
-            <p class="text-sm text-gray-500">Zones with reports</p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Non-Compliant Zones</h3>
-            <p class="text-3xl font-bold text-red-600"><?php echo $nonCompliantCount; ?></p>
-            <p class="text-sm text-gray-500">Zones without reports</p>
+    <div class="zc-stats">
+        <div class="zc-stat"><div class="zc-stat-label">Total Zones</div><div class="zc-stat-value" style="color:var(--neutral-900);"><?php echo $totalZones; ?></div></div>
+        <div class="zc-stat"><div class="zc-stat-label">Compliant Zones</div><div class="zc-stat-value" style="color:var(--success-700);"><?php echo $compliantCount; ?></div></div>
+        <div class="zc-stat"><div class="zc-stat-label">Non-Compliant Zones</div><div class="zc-stat-value" style="color:var(--danger-600);"><?php echo $nonCompliantCount; ?></div></div>
+    </div>
+
+    <div class="zc-section">
+        <div class="zc-section-head"><h2>Filters</h2></div>
+        <div class="zc-section-body">
+            <form method="GET" class="zc-filter-grid">
+                <div class="modern-form-group">
+                    <label for="region" class="modern-form-label">Region</label>
+                    <select id="region" name="region" class="modern-form-input">
+                        <option value="">All Regions</option>
+                        <?php foreach ($regions as $region): ?>
+                        <option value="<?php echo htmlspecialchars($region); ?>" <?php echo $filterRegion === $region ? 'selected' : ''; ?>><?php echo htmlspecialchars($region); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="modern-form-group">
+                    <label for="year" class="modern-form-label">Year</label>
+                    <select id="year" name="year" class="modern-form-input">
+                        <option value="">All Years</option>
+                        <?php foreach ($years as $year): ?>
+                        <option value="<?php echo htmlspecialchars($year); ?>" <?php echo $filterYear == $year ? 'selected' : ''; ?>><?php echo htmlspecialchars($year); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="modern-form-group">
+                    <label for="status" class="modern-form-label">Status</label>
+                    <select id="status" name="status" class="modern-form-input">
+                        <option value="">All Zones</option>
+                        <option value="compliant" <?php echo $filterStatus === 'compliant' ? 'selected' : ''; ?>>Compliant</option>
+                        <option value="non_compliant" <?php echo $filterStatus === 'non_compliant' ? 'selected' : ''; ?>>Non-Compliant</option>
+                    </select>
+                </div>
+                <div style="display:flex;align-items:flex-end;gap:0.5rem;">
+                    <button type="submit" class="modern-button modern-button-primary" style="font-size:0.8125rem;">Apply</button>
+                    <a href="?" class="modern-button modern-button-secondary" style="font-size:0.8125rem;">Clear</a>
+                </div>
+            </form>
         </div>
     </div>
 
-    <!-- Filters -->
-    <div class="bg-white p-6 rounded-lg shadow mb-8">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <label for="region" class="block text-sm font-medium text-gray-700 mb-1">Region</label>
-                <select id="region" name="region" class="w-full border border-gray-300 rounded-md px-3 py-2">
-                    <option value="">All Regions</option>
-                    <?php foreach ($regions as $region): ?>
-                    <option value="<?php echo htmlspecialchars($region); ?>" <?php echo $filterRegion === $region ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($region); ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div>
-                <label for="year" class="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                <select id="year" name="year" class="w-full border border-gray-300 rounded-md px-3 py-2">
-                    <option value="">All Years</option>
-                    <?php foreach ($years as $year): ?>
-                    <option value="<?php echo htmlspecialchars($year); ?>" <?php echo $filterYear == $year ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($year); ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div>
-                <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select id="status" name="status" class="w-full border border-gray-300 rounded-md px-3 py-2">
-                    <option value="">All Zones</option>
-                    <option value="compliant" <?php echo $filterStatus === 'compliant' ? 'selected' : ''; ?>>Compliant</option>
-                    <option value="non_compliant" <?php echo $filterStatus === 'non_compliant' ? 'selected' : ''; ?>>Non-Compliant</option>
-                </select>
-            </div>
-            <div class="flex items-end space-x-2">
-                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                    Apply Filters
-                </button>
-                <a href="?" class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400">
-                    Clear
-                </a>
-            </div>
-        </form>
-    </div>
-
-    <!-- Zone List -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-semibold text-gray-900">Zone Details</h3>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+    <div class="zc-section">
+        <div class="zc-section-head"><h2>Zone Details</h2></div>
+        <div style="overflow-x:auto;">
+            <table class="zc-table">
+                <thead><tr>
+                    <th>Zone</th><th>Region</th><th>Status</th><th>Total Reports</th><th>Months Submitted</th><th>Last Submission</th>
+                </tr></thead>
+                <tbody>
+                    <?php if (empty($zones)): ?>
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zone</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Region</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Reports</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Months Submitted</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Submission</th>
+                        <td colspan="6">
+                            <div style="padding:3rem 1.5rem;text-align:center;">
+                                <i class="fas fa-map-marker-alt" style="font-size:2rem;color:var(--neutral-300);display:block;margin-bottom:0.75rem;"></i>
+                                <?php if ($filterRegion || $filterYear || $filterStatus): ?>
+                                <p style="font-size:0.875rem;color:var(--neutral-500);margin:0 0 1rem;">No zones match the selected filters.</p>
+                                <a href="?" class="modern-button modern-button-secondary" style="font-size:0.8125rem;"><i class="fas fa-times modern-button-icon"></i> Clear Filters</a>
+                                <?php else: ?>
+                                <p style="font-size:0.875rem;color:var(--neutral-500);margin:0 0 1rem;">No zones found. Add users with zones to start tracking compliance.</p>
+                                <a href="users.php" class="modern-button modern-button-primary" style="font-size:0.8125rem;"><i class="fas fa-user-plus modern-button-icon"></i> Manage Users</a>
+                                <?php endif; ?>
+                            </div>
+                        </td>
                     </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    <?php foreach ($zones as $zone): 
+                    <?php else: ?>
+                    <?php foreach ($zones as $zone):
                         $isCompliant = ($zone['total_reports'] ?? 0) > 0;
-                        $statusClass = $isCompliant ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100';
-                        $statusText = $isCompliant ? 'Compliant' : 'Non-Compliant';
                     ?>
                     <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            <?php echo htmlspecialchars($zone['zone']); ?>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <?php echo htmlspecialchars($zone['region']); ?>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full <?php echo $statusClass; ?>">
-                                <?php echo $statusText; ?>
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <?php echo number_format($zone['total_reports'] ?? 0); ?>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <?php echo number_format($zone['months_active'] ?? 0); ?>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <?php 
-                            if ($zone['last_submission']) {
-                                echo date('M j, Y', strtotime($zone['last_submission']));
-                            } else {
-                                echo 'Never';
-                            }
-                            ?>
-                        </td>
+                        <td style="font-weight:500;"><?php echo htmlspecialchars($zone['zone']); ?></td>
+                        <td><?php echo htmlspecialchars($zone['region']); ?></td>
+                        <td><?php if ($isCompliant): ?><span class="modern-badge modern-badge-success">Compliant</span><?php else: ?><span class="modern-badge modern-badge-danger">Non-Compliant</span><?php endif; ?></td>
+                        <td><?php echo number_format($zone['total_reports'] ?? 0); ?></td>
+                        <td><?php echo number_format($zone['months_active'] ?? 0); ?></td>
+                        <td style="color:var(--neutral-500);"><?php echo $zone['last_submission'] ? date('M j, Y', strtotime($zone['last_submission'])) : '<span style="color:var(--danger-500);">Never</span>'; ?></td>
                     </tr>
                     <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
-    </div>
-
-    <!-- Back to Dashboard -->
-    <div class="mt-8">
-        <a href="dashboard.php" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
-            Back to Dashboard
-        </a>
     </div>
 </div>
 

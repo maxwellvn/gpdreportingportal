@@ -24,16 +24,7 @@ if (empty($region)) {
     exit;
 }
 
-// Database connection
-$db = new Database();
-$conn = $db->getConnection();
-
-// Get zones for the specified region
-$query = "SELECT DISTINCT zone FROM users WHERE region = :region AND zone IS NOT NULL ORDER BY zone";
-$stmt = $conn->prepare($query);
-$stmt->bindParam(':region', $region);
-$stmt->execute();
-$zones = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$zones = $REGIONS_ZONES[$region] ?? [];
 
 // Set JSON header
 header('Content-Type: application/json');
