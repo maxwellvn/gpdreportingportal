@@ -96,6 +96,10 @@ if (!empty($filterZone))     $filters['zone']      = $filterZone;
 // Get key statistics
 $reportStats = $stats->getReportStatistics($filters);
 $complianceData = $stats->getZoneCompliance($filters);
+$engagementStats = $stats->getUserEngagementStatistics([
+    'region' => $filterRegion,
+    'zone' => $filterZone
+]);
 
 // Get reports breakdown by month for the selected year
 $monthlyBreakdownQuery = "SELECT
@@ -500,6 +504,11 @@ require_once '../layouts/header.php';
         <div class="ad-metric-grid">
             <div class="ad-metric"><div class="ad-metric-label">Reports Submitted</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_reports'] ?? 0); ?></div></div>
             <div class="ad-metric"><div class="ad-metric-label">Zones with Reports</div><div class="ad-metric-value"><?php echo number_format($reportStats['unique_zones'] ?? 0); ?></div></div>
+            <div class="ad-metric"><div class="ad-metric-label">Avg. Visits / Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['avg_visits_per_month'] ?? 0, 1); ?></div></div>
+            <div class="ad-metric"><div class="ad-metric-label">Avg. Unique Visitors / Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['avg_unique_visitors_per_month'] ?? 0, 1); ?></div></div>
+            <div class="ad-metric"><div class="ad-metric-label">Visits This Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['visits_this_month'] ?? 0); ?></div></div>
+            <div class="ad-metric"><div class="ad-metric-label">Unique Visitors This Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['unique_visitors_this_month'] ?? 0); ?></div></div>
+            <div class="ad-metric"><div class="ad-metric-label">Reports This Month</div><div class="ad-metric-value"><?php echo number_format($engagementStats['posts_this_month'] ?? 0); ?></div></div>
             <div class="ad-metric"><div class="ad-metric-label">Copies Sponsored</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_copies'] ?? 0); ?></div></div>
             <div class="ad-metric"><div class="ad-metric-label">Total Distributions</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_distribution'] ?? 0); ?></div></div>
             <div class="ad-metric"><div class="ad-metric-label">Souls Won</div><div class="ad-metric-value"><?php echo number_format($reportStats['total_souls'] ?? 0); ?></div></div>

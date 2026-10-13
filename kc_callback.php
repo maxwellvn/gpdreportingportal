@@ -227,6 +227,7 @@ if ($kcUserId !== '') {
         }
         $_SESSION['user_id'] = (int)$mappedUserId;
         $_SESSION['last_activity'] = time();
+        Auth::recordUserVisit((int)$mappedUserId, 'kingschat');
 
         // Don't show KC link prompt if they're logging in via KingsChat (already linked)
         // The prompt is only for username/password logins
